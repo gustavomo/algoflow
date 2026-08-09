@@ -1,0 +1,42 @@
+{
+  "name": "algoflow",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "next": "14.2.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "framer-motion": "10.16.4",
+    "xstate": "4.38.3",
+    "@monaco-editor/react": "4.6.0",
+    "@xstate/react": "3.2.2",
+    "openai": "4.28.4",
+    "lru-cache": "10.1.0",
+    "gray-matter": "4.0.3",
+    "pixi.js": "8.1.0",
+    "next-mdx-remote": "5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.4.5",
+    "@types/node": "20.11.19",
+    "@types/react": "18.2.21",
+    "@types/react-dom": "18.2.7",
+    "tailwindcss": "3.4.1",
+    "postcss": "8.4.32",
+    "autoprefixer": "10.4.16",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.0",
+    "prettier": "3.2.5",
+    "vitest": "1.4.0",
+    "@next/mdx": "14.2.0",
+    "@mdx-js/loader": "3.0.1"
+  }
+}

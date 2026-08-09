@@ -1,0 +1,12 @@
+[
+  {"id":"1","tech":"js","topic":"bubble-sort","step":1,"content":"Compare adjacent elements and swap if needed."},
+  {"id":"2","tech":"js","topic":"bubble-sort","step":2,"content":"After each pass, the largest element bubbles to the end."},
+  {"id":"3","tech":"ts","topic":"sliding-window","step":1,"content":"Initialize window pointers."},
+  {"id":"4","tech":"ts","topic":"sliding-window","step":2,"content":"Expand the window by moving right pointer."},
+  {"id":"5","tech":"ts","topic":"sliding-window","step":3,"content":"Shrink the window from left to maintain condition."},
+  {"id":"6","tech":"go","topic":"bfs","step":1,"content":"Use a queue to process nodes by level."},
+  {"id":"7","tech":"go","topic":"bfs","step":2,"content":"Mark nodes as visited to avoid repeats."},
+  {"id":"8","tech":"js","topic":"two-pointers","step":1,"content":"Place pointers at start and end."},
+  {"id":"9","tech":"js","topic":"two-pointers","step":2,"content":"Move pointers towards each other based on condition."},
+  {"id":"10","tech":"go","topic":"grid","step":1,"content":"Represent grid as 2D array."}
+]
