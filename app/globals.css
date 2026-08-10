@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: radial-gradient(
+      circle at 12% -10%,
+      rgba(34, 211, 238, 0.09),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 88% 8%,
+      rgba(245, 158, 11, 0.07),
+      transparent 24rem
+    ),
+    #061015;
+}
+
+::selection {
+  background: rgba(103, 232, 249, 0.25);
+  color: white;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+.lesson-copy {
+  color: rgb(203 213 225);
+  line-height: 1.8;
+}
+
+.lesson-copy h2 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.lesson-copy p,
+.lesson-copy ul {
+  margin-top: 1rem;
+}
+
+.lesson-copy ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+.lesson-copy code {
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 0.12rem 0.35rem;
+  color: rgb(165 243 252);
+}

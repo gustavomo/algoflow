@@ -1,0 +1,13 @@
+Complexity describes how an algorithm's work grows as its input grows. It is a model for
+comparison, not a stopwatch reading.
+
+<Hint>Focus on the dominant term: `3n² + 2n + 8` becomes `O(n²)`.</Hint>
+
+## Build the intuition
+
+- `O(1)` stays bounded.
+- `O(log n)` repeatedly reduces the remaining search space.
+- `O(n)` visits input once.
+- `O(n²)` often compares many pairs.
+
+Bubble Sort is useful here because its nested passes make quadratic growth visible.

@@ -1,0 +1,11 @@
+Depth-first search follows one branch until it cannot continue, then backtracks. A stack
+can make that frontier explicit; recursion uses the call stack implicitly.
+
+<Hint>
+  Mark a cell visited when it enters the frontier, not after exploring it.
+</Hint>
+
+## Compare it with BFS
+
+Both traversals visit reachable cells in linear time relative to the grid. Their frontier
+discipline changes the order: BFS uses FIFO while DFS uses LIFO.
