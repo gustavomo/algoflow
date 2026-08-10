@@ -1,81 +1,102 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+
+import { useEffect, useMemo } from 'react';
 import { useMachine } from '@xstate/react';
+import { createBubbleSortSteps } from '../../lib/algorithms/bubbleSort';
+import {
+  createSlidingWindowSteps,
+  createTwoPointerSteps,
+} from '../../lib/algorithms/pointerSteps';
+import { lessonBySlug } from '../../lib/content/catalog';
 import playbackMachine from '../../lib/xstate/playbackMachine';
-import PlaybackBar from '../animation/PlaybackBar';
 import BubbleSortViz from '../animation/BubbleSortViz';
+import ComplexityViz from '../animation/ComplexityViz';
+import PixiCanvas from '../animation/PixiCanvas';
+import PlaybackBar from '../animation/PlaybackBar';
 import TwoPointersViz from '../animation/TwoPointersViz';
 
-type LessonSlug = 'bubble-sort-js' | 'sliding-window-ts' | string;
-
-export default function LessonVizPlayer({ slug }: { slug: LessonSlug }) {
+export default function LessonVizPlayer({ slug }: { slug: string }) {
+  const lesson = lessonBySlug.get(slug);
   const [state, send] = useMachine(playbackMachine);
-  const [stepIndex, setStepIndex] = useState(0);
+  const sequence = useMemo(() => {
+    if (lesson?.visualization === 'bubble-sort')
+      return createBubbleSortSteps([5, 3, 8, 4, 2]);
+    if (lesson?.visualization === 'two-pointers')
+      return createTwoPointerSteps();
+    if (lesson?.visualization === 'sliding-window')
+      return createSlidingWindowSteps();
+    if (lesson?.visualization === 'complexity') return [0, 1, 2];
+    return Array.from({ length: 11 }, (_, index) => index);
+  }, [lesson?.visualization]);
 
-  // Precompute step sequences per lesson type
-  const { totalSteps, render } = useMemo(() => {
-    if (slug === 'bubble-sort-js') {
-      const values = [5, 3, 8, 4, 2];
-      const n = values.length;
-      const steps: { i: number; j: number }[] = [];
-      for (let pass = 0; pass < n - 1; pass++) {
-        for (let j = 0; j < n - 1 - pass; j++) {
-          steps.push({ i: j, j: j + 1 });
-        }
+  useEffect(() => {
+    send({ type: 'SETUP', totalSteps: sequence.length });
+  }, [send, sequence.length, slug]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      )
+        return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' });
       }
-      const render = (idx: number) => {
-        const s = steps[Math.min(idx, steps.length - 1)] ?? { i: 0, j: 1 };
-        return <BubbleSortViz values={values} step={s} />;
-      };
-      return { totalSteps: steps.length, render };
-    }
-    if (slug === 'sliding-window-ts') {
-      const length = 5;
-      const steps: { left: number; right: number }[] = [
-        { left: 0, right: 1 },
-        { left: 0, right: 2 },
-        { left: 1, right: 3 },
-        { left: 2, right: 4 },
-      ];
-      const render = (idx: number) => {
-        const s = steps[Math.min(idx, steps.length - 1)] ?? { left: 0, right: 1 };
-        return <TwoPointersViz length={length} left={s.left} right={s.right} />;
-      };
-      return { totalSteps: steps.length, render };
-    }
-    // Fallback placeholder
-    const render = () => <div className="border h-40 flex items-center justify-center">PixiJS Placeholder</div>;
-    return { totalSteps: 1, render };
-  }, [slug]);
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        send({ type: 'PREV' });
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        send({ type: 'NEXT' });
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [send, state]);
 
-  // Reset when lesson changes
-  useEffect(() => {
-    setStepIndex(0);
-  }, [slug]);
-
-  // Auto-advance when playing
-  useEffect(() => {
-    if (!state.matches('playing')) return;
-    const id = setInterval(() => {
-      setStepIndex((i) => Math.min(i + 1, totalSteps - 1));
-    }, 700);
-    return () => clearInterval(id);
-  }, [state, totalSteps]);
-
-  const handleSend = (event: any) => {
-    // Intercept manual navigation
-    const type = typeof event === 'string' ? event : event?.type;
-    if (type === 'NEXT') setStepIndex((i) => Math.min(i + 1, totalSteps - 1));
-    if (type === 'PREV') setStepIndex((i) => Math.max(i - 1, 0));
-    if (type === 'PLAY' || type === 'PAUSE') {
-      send(event as any);
-    }
-  };
+  const index = Math.min(state.context.stepIndex, sequence.length - 1);
+  let visualization = <ComplexityViz step={index} />;
+  if (lesson?.visualization === 'bubble-sort')
+    visualization = (
+      <BubbleSortViz
+        snapshot={
+          sequence[index] as ReturnType<typeof createBubbleSortSteps>[number]
+        }
+      />
+    );
+  if (
+    lesson?.visualization === 'two-pointers' ||
+    lesson?.visualization === 'sliding-window'
+  ) {
+    const step = sequence[index] as ReturnType<
+      typeof createTwoPointerSteps
+    >[number];
+    visualization = (
+      <>
+        <TwoPointersViz length={7} left={step.left} right={step.right} />
+        <p className="mt-4 min-h-6 text-sm text-slate-400">{step.narration}</p>
+      </>
+    );
+  }
+  if (
+    lesson?.visualization === 'bfs-grid' ||
+    lesson?.visualization === 'dfs-grid'
+  )
+    visualization = (
+      <PixiCanvas
+        mode={lesson.visualization === 'bfs-grid' ? 'bfs' : 'dfs'}
+        step={index}
+      />
+    );
 
   return (
     <div>
-      {render(stepIndex)}
-      <PlaybackBar state={state} send={handleSend as any} />
+      {visualization}
+      <PlaybackBar state={state} send={send} />
     </div>
   );
 }

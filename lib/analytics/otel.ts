@@ -1,4 +1,7 @@
-export async function withTimer<T>(name: string, fn: () => Promise<T>): Promise<T> {
+export async function withTimer<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   const start = Date.now();
   const result = await fn();
   const duration = Date.now() - start;

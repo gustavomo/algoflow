@@ -1,0 +1,11 @@
+Two pointers coordinate two indices under an invariant. A common version starts at both
+ends of a sorted array and moves the side that cannot participate in the answer.
+
+<Hint>
+  Before moving a pointer, state what remains true about the region you skipped.
+</Hint>
+
+## Example
+
+For a target sum, compare `values[left] + values[right]`. Move `left` when the sum is too
+small and `right` when it is too large. Each pointer moves at most `n` times.

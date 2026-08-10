@@ -1,9 +1,18 @@
+import type { Chunk } from '../rag/types';
+
+export interface AIRequest {
+  question: string;
+  tech?: string;
+  context: Chunk[];
+}
+
 export interface AIClient {
-  ask(question: string, tech?: string, citations?: string[]): Promise<string>;
+  readonly provider: 'mock' | 'openai';
+  ask(request: AIRequest): Promise<string>;
 }
 
 export async function getClient(): Promise<AIClient> {
-  if (process.env.MOCK_AI === '1') {
+  if (process.env.MOCK_AI === '1' || !process.env.OPENAI_API_KEY) {
     const { mockClient } = await import('./mockClient');
     return mockClient;
   }

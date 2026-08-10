@@ -5,8 +5,5 @@ const withMDX = nextMDX({
 });
 
 export default withMDX({
-  experimental: {
-    appDir: true,
-  },
   pageExtensions: ['ts', 'tsx', 'mdx', 'md'],
 });

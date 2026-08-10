@@ -1,12 +1,72 @@
 [
-  {"id":"1","tech":"js","topic":"bubble-sort","step":1,"content":"Compare adjacent elements and swap if needed."},
-  {"id":"2","tech":"js","topic":"bubble-sort","step":2,"content":"After each pass, the largest element bubbles to the end."},
-  {"id":"3","tech":"ts","topic":"sliding-window","step":1,"content":"Initialize window pointers."},
-  {"id":"4","tech":"ts","topic":"sliding-window","step":2,"content":"Expand the window by moving right pointer."},
-  {"id":"5","tech":"ts","topic":"sliding-window","step":3,"content":"Shrink the window from left to maintain condition."},
-  {"id":"6","tech":"go","topic":"bfs","step":1,"content":"Use a queue to process nodes by level."},
-  {"id":"7","tech":"go","topic":"bfs","step":2,"content":"Mark nodes as visited to avoid repeats."},
-  {"id":"8","tech":"js","topic":"two-pointers","step":1,"content":"Place pointers at start and end."},
-  {"id":"9","tech":"js","topic":"two-pointers","step":2,"content":"Move pointers towards each other based on condition."},
-  {"id":"10","tech":"go","topic":"grid","step":1,"content":"Represent grid as 2D array."}
+  {
+    "id": "js/complexity#1",
+    "tech": "js",
+    "topic": "complexity",
+    "step": 1,
+    "content": "Big-O compares how work grows with input size and ignores constant factors."
+  },
+  {
+    "id": "js/complexity#2",
+    "tech": "js",
+    "topic": "complexity",
+    "step": 2,
+    "content": "A nested scan over all pairs often produces quadratic O(n squared) work."
+  },
+  {
+    "id": "js/bubble-sort#1",
+    "tech": "js",
+    "topic": "bubble-sort",
+    "step": 1,
+    "content": "Compare adjacent elements and swap when the left value is larger."
+  },
+  {
+    "id": "js/bubble-sort#2",
+    "tech": "js",
+    "topic": "bubble-sort",
+    "step": 2,
+    "content": "After each pass, the largest remaining element is fixed at the sorted boundary."
+  },
+  {
+    "id": "js/two-pointers#1",
+    "tech": "js",
+    "topic": "two-pointers",
+    "step": 1,
+    "content": "Two pointers move under an invariant so discarded regions never need to be scanned again."
+  },
+  {
+    "id": "ts/sliding-window#1",
+    "tech": "ts",
+    "topic": "sliding-window",
+    "step": 1,
+    "content": "A sliding window maintains incremental state while its left and right boundaries move."
+  },
+  {
+    "id": "ts/sliding-window#2",
+    "tech": "ts",
+    "topic": "sliding-window",
+    "step": 2,
+    "content": "Expand by adding the entering value and shrink by removing the leaving value."
+  },
+  {
+    "id": "go/bfs#1",
+    "tech": "go",
+    "topic": "bfs",
+    "step": 1,
+    "content": "Breadth-first search uses a FIFO queue to process a graph or grid layer by layer."
+  },
+  {
+    "id": "go/bfs#2",
+    "tech": "go",
+    "topic": "bfs",
+    "step": 2,
+    "content": "Mark a cell visited when it enters the queue to prevent duplicate frontier work."
+  },
+  {
+    "id": "go/dfs#1",
+    "tech": "go",
+    "topic": "dfs",
+    "step": 1,
+    "content": "Depth-first search uses a LIFO stack or recursion to follow one branch before backtracking."
+  }
 ]
