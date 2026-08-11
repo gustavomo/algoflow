@@ -1,15 +1,19 @@
 # AlgoFlow
 
-AlgoFlow is a personal algorithm-learning workspace with animated lessons, deterministic assessments, spaced review, Web Push reminders, and grounded AI explanations. It is designed for one learner, runs fully offline with server-side mocks, and can be deployed to Vercel with PostgreSQL.
+AlgoFlow is a personal software-engineering learning workspace with animated lessons, deterministic assessments, spaced review, technical reading, system-design practice, Web Push reminders, and grounded AI explanations. It is designed for one learner, runs fully offline with server-side mocks, and uses independently deployable Next.js web and API applications.
 
 ## Included MVP
 
-- Six lessons grouped into four topics and three learning paths
-- SVG and Framer Motion visualizations for Bubble Sort, pointer patterns, and complexity
+- Nine tracks, 25 learning paths, 14 complete lessons, and 14 deterministic assessments
+- Roadmaps for software engineering, JavaScript, Go, patterns, System Design, networking/CDNs, databases, PostgreSQL, MySQL, Docker, Kubernetes, AWS, mathematics, AI/ML/deep learning, agentic engineering, English, technical reading, and learning how to learn
+- SVG and Framer Motion visualizations for Bubble Sort, pointer patterns, complexity, and reusable concept flows
 - Optional PixiJS scaffold for grid traversal scenes
 - XState playback with play, pause, seek, step, speed, keyboard controls, and reduced-motion support
 - Monaco code editor loaded only in the browser
 - Deterministic assessments that create concept-level review items
+- Server-persisted focused path with honest available/planned progress
+- Technical reading library with chapter progress, private notes, and explicit note-to-review conversion
+- System Design Lab with editable SVG topologies, animated traffic, deterministic rubrics, attempt history, and explicitly applied AI patch previews
 - Server-owned progress, attempts, mastery, spaced-review state, and push subscriptions
 - In-app review queue plus daily Web Push reminders
 - Local JSON RAG with a swappable retriever interface
@@ -26,7 +30,7 @@ npm install
 npm run dev
 ```
 
-The example environment enables mock access, mock persistence, and mock AI. Open `http://localhost:3000`. Mock persistence lives in the Node.js server process and resets when that process restarts; nothing is stored in browser local storage.
+The example environment enables mock access, mock persistence, and mock AI. `npm run dev` starts the web on `http://localhost:3000` and the API on `http://localhost:4000`. Mock persistence lives in the API process and resets when that process restarts; nothing is stored in browser local storage.
 
 ## PostgreSQL development
 
@@ -48,20 +52,23 @@ Production requires `DATABASE_URL`; the in-memory repository is intended only fo
 
 ## Environment variables
 
-| Variable                       | Required in production | Purpose                                                                      |
-| ------------------------------ | ---------------------- | ---------------------------------------------------------------------------- |
-| `APP_ACCESS_CODE`              | Yes                    | Shared code used to enter the personal instance.                             |
-| `ACCESS_COOKIE_SECRET`         | Yes                    | Secret used to sign the access cookie; use at least 32 random characters.    |
-| `MOCK_ACCESS`                  | No                     | Set to `1` only for local access bypass.                                     |
-| `DATABASE_URL`                 | Yes                    | PostgreSQL connection string and durable source of truth.                    |
-| `MOCK_PERSISTENCE`             | No                     | Set to `1` for server-memory local development.                              |
-| `OPENAI_API_KEY`               | No                     | Enables real AI explanations; an empty value automatically selects the mock. |
-| `MOCK_AI`                      | No                     | Set to `1` to force deterministic offline explanations.                      |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | For push               | Public VAPID key exposed to the browser.                                     |
-| `VAPID_PRIVATE_KEY`            | For push               | Server-only VAPID private key.                                               |
-| `VAPID_SUBJECT`                | For push               | Contact URI, normally `mailto:you@example.com`.                              |
-| `CRON_SECRET`                  | For push               | Bearer secret protecting the reminder endpoint.                              |
-| `REMINDER_TIMEZONE`            | No                     | IANA timezone used to deduplicate the daily reminder window.                 |
+| Variable                       | Application | Required in production | Purpose                                                                      |
+| ------------------------------ | ----------- | ---------------------- | ---------------------------------------------------------------------------- |
+| `APP_ACCESS_CODE`              | Web         | Yes                    | Shared code used to enter the personal instance.                             |
+| `ACCESS_COOKIE_SECRET`         | Web         | Yes                    | Secret used to sign the access cookie; use at least 32 random characters.    |
+| `MOCK_ACCESS`                  | Web         | No                     | Set to `1` only for local access bypass.                                     |
+| `BACKEND_URL`                  | Web         | Yes                    | Private base URL of the independently deployed API.                          |
+| `BACKEND_SHARED_SECRET`        | Both        | Yes                    | Server-only token authenticating web-to-API requests.                        |
+| `DATABASE_URL`                 | API         | Yes                    | PostgreSQL connection string and durable source of truth.                    |
+| `MOCK_PERSISTENCE`             | API         | No                     | Set to `1` for API-memory local development.                                 |
+| `OPENAI_API_KEY`               | API         | No                     | Enables real AI explanations; an empty value automatically selects the mock. |
+| `MOCK_AI`                      | API         | No                     | Set to `1` to force deterministic offline explanations.                      |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web         | For push               | Public VAPID key exposed to the browser.                                     |
+| `VAPID_PUBLIC_KEY`             | API         | For push               | Matching public VAPID key used by the sender.                                |
+| `VAPID_PRIVATE_KEY`            | API         | For push               | Server-only VAPID private key.                                               |
+| `VAPID_SUBJECT`                | API         | For push               | Contact URI, normally `mailto:you@example.com`.                              |
+| `CRON_SECRET`                  | API         | For push               | Bearer secret protecting the reminder endpoint.                              |
+| `REMINDER_TIMEZONE`            | API         | No                     | IANA timezone used to deduplicate the daily reminder window.                 |
 
 Generate VAPID keys with the installed Web Push CLI:
 
@@ -93,7 +100,9 @@ GET /api/rag?q=sliding%20window&tech=ts&topK=5
 }
 ```
 
-The endpoint also accepts `POST { "q": "...", "tech": "ts", "topK": 5 }`. Retrieval uses normalized token matching and TF-IDF-inspired scoring over `lib/rag/chunks.json`. The `Retriever` interface is the seam for a future pgvector adapter.
+The endpoint also accepts `POST { "q": "...", "tech": "ts", "topK": 5 }`. Retrieval uses normalized token matching and TF-IDF-inspired scoring over the API's versioned local chunks. The `Retriever` port is the seam for a future pgvector adapter.
+
+Curriculum retrieval also accepts `domain`, allowing the same store to distinguish areas such as cloud, data, AI, and communication while preserving the original technology filter.
 
 ### AI explanation
 
@@ -109,11 +118,29 @@ The response contains `{ answer, citations, provider, cached }`. If citations ar
 ### Learning state
 
 - `GET|POST /api/progress` reads the snapshot or updates a lesson.
+- `GET|POST /api/focus` reads or changes the server-persisted focused path.
 - `POST /api/assessments` grades and stores an attempt.
 - `GET|POST /api/reviews` lists due concepts or records a review rating.
 - `GET|POST /api/notifications/preferences` reads or updates reminder settings.
 - `POST|DELETE /api/notifications/subscription` manages a push subscription.
-- `GET /api/notifications/send-due` is the protected cron target.
+- `GET /api/v1/notifications/send-due` on the API deployment is the protected cron target.
+
+### Reading workspace
+
+- `GET|POST|PATCH|DELETE /api/reading` lists, creates, updates, or deletes books.
+- `POST|DELETE /api/reading/notes` manages chapter notes.
+- `POST /api/reading/review` explicitly converts a private note into a spaced-review prompt.
+
+Reading notes are never added to local retrieval or AI context. Only the learner-authored prompt and answer from an explicit conversion enter the review queue.
+
+### System Design Lab
+
+- `GET /api/simulations` lists scenarios; `?slug=...` restores one workspace.
+- `POST /api/simulations/draft` validates and saves one mutable draft per scenario.
+- `POST /api/simulations/proposal` returns a validated AI patch and preview graph without persisting it.
+- `POST /api/simulations/evaluate` stores an immutable deterministic attempt and schedules failed rubric concepts for review.
+
+The canonical score comes from versioned server rules, never from the AI provider. The offline mock and `gpt-4o-mini` provider share the same constrained patch boundary.
 
 ## Quality scripts
 
@@ -129,18 +156,22 @@ npm run build
 
 ## Deploy to Vercel
 
-1. Provision PostgreSQL and set `DATABASE_URL` in the Vercel project.
-2. Run `npm run db:migrate` against that production database before first use.
-3. Configure the access, AI, VAPID, and cron environment variables listed above.
-4. Deploy the repository. `vercel.json` registers a daily call to `/api/notifications/send-due` at `13:00 UTC`.
-5. Open the deployed HTTPS URL, enter the access code, and enable reminders from the dashboard. Notification permission is always requested through an explicit user action.
+1. Create two Vercel projects from the repository, rooted at `apps/api` and `apps/web`.
+2. Provision PostgreSQL, configure API/provider/push variables on the API project, and run `npm run db:migrate` from the repository root.
+3. Deploy the API first. Its `vercel.json` registers `/api/v1/notifications/send-due` at `13:00 UTC`.
+4. Configure the web project with access variables, the deployed `BACKEND_URL`, the same `BACKEND_SHARED_SECRET`, and the public VAPID key.
+5. Deploy the web, open its HTTPS URL, enter the access code, and enable reminders from the dashboard.
 
 The daily cron is a reminder window, not an exact alarm. Users who decline browser push still retain the in-app review queue.
 
 ## Architecture notes
 
-- Lesson MDX remains server-rendered; interactive players, assessments, notifications, and Monaco are isolated client components.
+- The npm workspace contains `apps/web`, `apps/api`, and `packages/contracts`; the browser never receives database or provider credentials.
+- The API is a modular monolith organized by product capability. Domain and application modules depend on ports, and framework/provider code lives in adapters.
+- Lesson MDX remains server-rendered in the web; interactive players, assessments, notifications, and Monaco are isolated client components.
 - Animations consume immutable algorithm snapshots and only render state transitions.
 - Grading is deterministic. AI explains results but never decides correctness or mastery.
+- AI system-design proposals are validated previews; only an explicit apply followed by save changes a draft.
+- Technical notes stay private to reading persistence and are excluded from RAG and provider prompts.
 - PostgreSQL is authoritative in deployed environments; browser storage is not used for learning state.
 - Caches are in-process optimizations only and never replace durable learning records.

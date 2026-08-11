@@ -1,0 +1,13 @@
+Relational modeling turns product rules into durable constraints.
+
+<Hint>
+  Name the entity and its identity before choosing columns or indexes.
+</Hint>
+
+## Start from invariants
+
+A primary key gives each row stable identity. A foreign key preserves a valid relationship. Unique and check constraints reject states the product says cannot exist.
+
+## Query the model
+
+Indexes accelerate access paths, but they do not repair unclear ownership or duplicated facts. Model the truth first, write representative queries, and use query plans to decide which indexes pay for their write cost.

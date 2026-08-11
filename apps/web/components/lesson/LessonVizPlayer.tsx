@@ -1,0 +1,119 @@
+'use client';
+
+import { useEffect, useMemo } from 'react';
+import { useMachine } from '@xstate/react';
+import type {
+  ConceptFlowNarrative,
+  VisualizationKind,
+} from '@algoflow/contracts';
+import { createBubbleSortSteps } from '../../lib/algorithms/bubbleSort';
+import {
+  createSlidingWindowSteps,
+  createTwoPointerSteps,
+} from '../../lib/algorithms/pointerSteps';
+import playbackMachine from '../../lib/xstate/playbackMachine';
+import BubbleSortViz from '../animation/BubbleSortViz';
+import ConceptFlowViz from '../animation/ConceptFlowViz';
+import ComplexityViz from '../animation/ComplexityViz';
+import PixiCanvas from '../animation/PixiCanvas';
+import PlaybackBar from '../animation/PlaybackBar';
+import TwoPointersViz from '../animation/TwoPointersViz';
+
+export default function LessonVizPlayer({
+  slug,
+  visualization: visualizationKind,
+  conceptFlow,
+}: {
+  slug: string;
+  visualization: VisualizationKind;
+  conceptFlow?: ConceptFlowNarrative;
+}) {
+  const [state, send] = useMachine(playbackMachine);
+  const sequence = useMemo(() => {
+    if (visualizationKind === 'bubble-sort')
+      return createBubbleSortSteps([5, 3, 8, 4, 2]);
+    if (visualizationKind === 'two-pointers') return createTwoPointerSteps();
+    if (visualizationKind === 'sliding-window')
+      return createSlidingWindowSteps();
+    if (visualizationKind === 'complexity') return [0, 1, 2];
+    if (visualizationKind === 'concept-flow' && conceptFlow)
+      return conceptFlow.steps;
+    return Array.from({ length: 11 }, (_, index) => index);
+  }, [conceptFlow, visualizationKind]);
+
+  useEffect(() => {
+    send({ type: 'SETUP', totalSteps: sequence.length });
+  }, [send, sequence.length, slug]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      )
+        return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' });
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        send({ type: 'PREV' });
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        send({ type: 'NEXT' });
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [send, state]);
+
+  const index = Math.min(state.context.stepIndex, sequence.length - 1);
+  let visualization = <ComplexityViz step={index} />;
+  if (visualizationKind === 'bubble-sort')
+    visualization = (
+      <BubbleSortViz
+        snapshot={
+          sequence[index] as ReturnType<typeof createBubbleSortSteps>[number]
+        }
+      />
+    );
+  if (
+    visualizationKind === 'two-pointers' ||
+    visualizationKind === 'sliding-window'
+  ) {
+    const step = sequence[index] as ReturnType<
+      typeof createTwoPointerSteps
+    >[number];
+    visualization = (
+      <>
+        <TwoPointersViz length={7} left={step.left} right={step.right} />
+        <p className="mt-4 min-h-6 text-sm text-muted">{step.narration}</p>
+      </>
+    );
+  }
+  if (visualizationKind === 'bfs-grid' || visualizationKind === 'dfs-grid')
+    visualization = (
+      <PixiCanvas
+        mode={visualizationKind === 'bfs-grid' ? 'bfs' : 'dfs'}
+        step={index}
+      />
+    );
+  if (visualizationKind === 'concept-flow' && conceptFlow) {
+    visualization = (
+      <ConceptFlowViz
+        narrative={conceptFlow}
+        step={sequence[index] as ConceptFlowNarrative['steps'][number]}
+      />
+    );
+  }
+
+  return (
+    <div>
+      {visualization}
+      <PlaybackBar state={state} send={send} />
+    </div>
+  );
+}

@@ -1,0 +1,14 @@
+JavaScript feels predictable once you separate synchronous execution from scheduled work.
+
+<Hint>
+  The current call stack runs to completion. A resolved timer or promise does
+  not interrupt it.
+</Hint>
+
+## The runtime model
+
+Functions enter the call stack and complete in order. Browser or server APIs perform external work. Ready callbacks enter a queue. The event loop schedules queued work only when the stack can accept it.
+
+## Predict before running
+
+For every asynchronous example, write the synchronous output first, identify which queue receives each callback, and only then simulate the event loop. Prediction is stronger evidence than memorizing a slogan.

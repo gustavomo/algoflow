@@ -1,0 +1,14 @@
+This lesson builds a compact map of a software system from one observable user action.
+
+<Hint>
+  A boundary is useful when it owns a distinct responsibility and exposes a
+  clear contract.
+</Hint>
+
+## Follow one request
+
+The interface translates intent into a request. The application service applies rules. The data store preserves authoritative state. Observability turns the result into feedback for the next engineering decision.
+
+## Use the map
+
+When a system is confusing, ask which layer owns the decision, what contract crosses the boundary, and where failure becomes visible. This keeps implementation details from replacing the system model.

@@ -1,0 +1,14 @@
+Containers package a process and its filesystem dependencies behind an explicit runtime boundary.
+
+<Hint>
+  An image is the immutable recipe output; a container is a running instance
+  with writable state.
+</Hint>
+
+## Build the artifact
+
+Each Dockerfile instruction can create a cached image layer. Stable dependencies belong before frequently changing source so rebuilds reuse earlier work. The final image should contain only what the process needs.
+
+## Run deliberately
+
+Configuration enters at runtime. Persistent data lives outside the container. Health checks report whether the process can serve useful work, and logs leave the container for centralized observation.

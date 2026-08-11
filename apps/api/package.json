@@ -1,0 +1,30 @@
+{
+  "name": "@algoflow/api",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4000",
+    "build": "next build",
+    "start": "next start -p 4000",
+    "typecheck": "tsc --noEmit --pretty false",
+    "db:migrate": "node scripts/db/migrate.mjs"
+  },
+  "dependencies": {
+    "@algoflow/contracts": "0.2.0",
+    "lru-cache": "10.1.0",
+    "next": "^15.5.21",
+    "openai": "4.28.4",
+    "pg": "^8.23.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.21.0",
+    "@types/react": "18.2.21",
+    "@types/react-dom": "18.2.7",
+    "@types/web-push": "^3.6.4",
+    "typescript": "5.4.5"
+  }
+}
