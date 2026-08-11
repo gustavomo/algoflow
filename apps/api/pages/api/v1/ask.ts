@@ -5,9 +5,12 @@ import { localJsonRetriever } from '@api/features/ai/adapters/retrieval/retrieve
 import { withTimer } from '@api/platform/analytics/otel';
 import { hashCacheKey, memoWithStatus } from '@api/platform/cache/memo';
 import { ApiError } from '@api/platform/http/errors';
+import { aiProviderApiError } from '@api/platform/http/aiProviderErrors';
 import { privateApi } from '@api/platform/http/handlers';
+import { requestAbort } from '@api/platform/http/requestAbort';
 import {
   optionalDomain,
+  optionalAIProviderSelection,
   optionalTech,
   requireMethod,
   requireString,
@@ -18,6 +21,7 @@ export default privateApi(async (req: NextApiRequest, res: NextApiResponse) => {
   const question = requireString(req.body?.question, 'question', 2_000);
   const tech = optionalTech(req.body?.tech);
   const domain = optionalDomain(req.body?.domain);
+  const providerSelection = optionalAIProviderSelection(req.body);
   const citationIds = req.body?.citations;
   if (
     citationIds != null &&
@@ -31,13 +35,22 @@ export default privateApi(async (req: NextApiRequest, res: NextApiResponse) => {
       'citations must contain at most eight local citation IDs.',
     );
   }
-  const client = await getClient();
+  const abort = requestAbort(req, res);
+  let client;
+  try {
+    client = await getClient(providerSelection);
+  } catch (error) {
+    abort.cleanup();
+    throw aiProviderApiError(error) ?? error;
+  }
   const key = hashCacheKey({
     question: question.toLocaleLowerCase(),
     tech,
     domain,
     citations: citationIds,
     provider: client.provider,
+    model: client.model,
+    effort: client.effort,
   });
   let result;
   try {
@@ -48,10 +61,14 @@ export default privateApi(async (req: NextApiRequest, res: NextApiResponse) => {
           tech,
           domain,
           citationIds,
+          signal: abort.signal,
         }),
       ),
     );
-  } catch {
+  } catch (error) {
+    abort.cleanup();
+    const providerError = aiProviderApiError(error);
+    if (providerError) throw providerError;
     throw new ApiError(
       502,
       'ai_provider_error',
@@ -59,12 +76,15 @@ export default privateApi(async (req: NextApiRequest, res: NextApiResponse) => {
       true,
     );
   }
-  if (!result.value.resolved)
+  if (!result.value.resolved) {
+    abort.cleanup();
     throw new ApiError(
       400,
       'unknown_citation',
       'Every citation must resolve to local lesson content.',
     );
+  }
   const { resolved: _resolved, ...answer } = result.value;
+  abort.cleanup();
   res.status(200).json({ ...answer, cached: result.cached });
 });

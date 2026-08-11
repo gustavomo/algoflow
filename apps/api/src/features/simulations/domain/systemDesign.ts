@@ -330,7 +330,7 @@ export function validatedProposal(
   graph: SystemDesignGraph,
   operations: GraphPatchOperation[],
   rationale: string,
-  provider: DesignProposal['provider'],
+  configuration: Pick<DesignProposal, 'provider' | 'model' | 'effort'>,
 ): DesignProposal | undefined {
   if (!rationale.trim() || rationale.length > 1200) return undefined;
   const result = applyGraphPatch(graph, operations);
@@ -339,7 +339,7 @@ export function validatedProposal(
         rationale: rationale.trim(),
         operations,
         previewGraph: result.graph,
-        provider,
+        ...configuration,
       }
     : undefined;
 }

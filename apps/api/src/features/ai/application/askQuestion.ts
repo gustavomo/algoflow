@@ -8,6 +8,7 @@ export interface AskQuestionInput {
   tech?: Tech;
   domain?: CurriculumDomain;
   citationIds?: string[];
+  signal?: AbortSignal;
 }
 
 export async function askQuestion(
@@ -29,8 +30,11 @@ export async function askQuestion(
       tech: input.tech,
       domain: input.domain,
       context: retrieval.context,
+      signal: input.signal,
     }),
     citations: retrieval.context,
     provider: client.provider,
+    model: client.model,
+    effort: client.effort,
   };
 }

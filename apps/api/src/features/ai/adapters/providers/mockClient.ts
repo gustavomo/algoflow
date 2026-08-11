@@ -2,6 +2,7 @@ import type { AIClient } from '../../ports/aiClient';
 
 export const mockClient: AIClient = {
   provider: 'mock',
+  model: 'deterministic-v1',
   async ask({ question, tech, domain, context }) {
     const sourceSummary = context.length
       ? context

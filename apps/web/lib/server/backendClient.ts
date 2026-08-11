@@ -26,23 +26,44 @@ function configuration() {
   return { url: url.replace(/\/$/, ''), secret };
 }
 
+function requestSignal(
+  external: AbortSignal | null | undefined,
+  timeoutMs: number,
+) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  if (!external) return timeout;
+  const controller = new AbortController();
+  const abort = () => {
+    external.removeEventListener('abort', abort);
+    timeout.removeEventListener('abort', abort);
+    controller.abort();
+  };
+  if (external.aborted || timeout.aborted) abort();
+  else {
+    external.addEventListener('abort', abort, { once: true });
+    timeout.addEventListener('abort', abort, { once: true });
+  }
+  return controller.signal;
+}
+
 export async function backendRequest<T>(
   path: string,
-  init: RequestInit = {},
+  init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<T> {
   const { url, secret } = configuration();
+  const { timeoutMs = 10_000, ...requestInit } = init;
   let response: Response;
   try {
     response = await fetch(`${url}${path}`, {
-      ...init,
+      ...requestInit,
       cache: 'no-store',
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${secret}`,
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...init.headers,
+        ...(requestInit.body ? { 'Content-Type': 'application/json' } : {}),
+        ...requestInit.headers,
       },
-      signal: AbortSignal.timeout(10_000),
+      signal: requestSignal(requestInit.signal, timeoutMs),
     });
   } catch {
     throw new BackendRequestError(

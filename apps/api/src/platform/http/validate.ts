@@ -1,6 +1,11 @@
 import type { NextApiRequest } from 'next';
 import {
+  AI_EFFORTS,
+  AI_PROVIDER_IDS,
   CURRICULUM_DOMAINS,
+  type AIEffort,
+  type AIProviderId,
+  type AIProviderSelection,
   type CurriculumDomain,
   type Tech,
 } from '@algoflow/contracts';
@@ -65,6 +70,50 @@ export function optionalDomain(value: unknown): CurriculumDomain | undefined {
     throw new ApiError(400, 'invalid_domain', 'domain is not supported.');
   }
   return value as CurriculumDomain;
+}
+
+export function optionalAIProviderSelection(
+  body: Record<string, unknown> | undefined,
+): AIProviderSelection | undefined {
+  const provider = body?.provider;
+  const model = body?.model;
+  const effort = body?.effort;
+  if (provider == null && model == null && effort == null) return undefined;
+  if (
+    typeof provider !== 'string' ||
+    !AI_PROVIDER_IDS.includes(provider as AIProviderId)
+  ) {
+    throw new ApiError(
+      400,
+      'invalid_ai_provider',
+      'Select a supported AI provider before choosing a model or effort.',
+    );
+  }
+  if (
+    model != null &&
+    (typeof model !== 'string' || !model.trim() || model.length > 80)
+  ) {
+    throw new ApiError(
+      400,
+      'invalid_ai_provider',
+      'The selected AI model is invalid.',
+    );
+  }
+  if (
+    effort != null &&
+    (typeof effort !== 'string' || !AI_EFFORTS.includes(effort as AIEffort))
+  ) {
+    throw new ApiError(
+      400,
+      'invalid_ai_provider',
+      'The selected AI effort is invalid.',
+    );
+  }
+  return {
+    provider: provider as AIProviderId,
+    model: typeof model === 'string' ? model.trim() : undefined,
+    effort: effort as AIEffort | undefined,
+  };
 }
 
 export function clampedInteger(
