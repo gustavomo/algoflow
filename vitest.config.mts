@@ -5,8 +5,8 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      include: ['lib/**/*.ts'],
-      exclude: ['lib/**/__tests__/**'],
+      include: ['apps/{api,web}/**/*.ts', 'packages/contracts/src/**/*.ts'],
+      exclude: ['**/__tests__/**', '**/.next/**', '**/*.d.ts'],
     },
   },
 });

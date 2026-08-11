@@ -1,0 +1,14 @@
+An agent is a bounded decision loop, not a single clever prompt.
+
+<Hint>
+  Every tool call needs an allowed capability, validated input, observable
+  result, and stop condition.
+</Hint>
+
+## Close the loop
+
+The goal constrains the task. The model chooses an allowed action. A tool produces an observation. The agent uses that evidence for the next decision, while an evaluator checks whether the result meets the goal.
+
+## Keep autonomy safe
+
+Use least privilege, budgets, idempotent operations, explicit approval for consequential actions, and traceable evidence. Evaluation belongs in the product contract rather than in the model's confidence.

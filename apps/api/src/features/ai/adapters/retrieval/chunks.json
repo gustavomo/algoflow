@@ -1,0 +1,146 @@
+[
+  {
+    "id": "js/complexity#1",
+    "tech": "js",
+    "domain": "algorithms",
+    "topic": "complexity",
+    "step": 1,
+    "content": "Big-O compares how work grows with input size and ignores constant factors."
+  },
+  {
+    "id": "js/complexity#2",
+    "tech": "js",
+    "domain": "algorithms",
+    "topic": "complexity",
+    "step": 2,
+    "content": "A nested scan over all pairs often produces quadratic O(n squared) work."
+  },
+  {
+    "id": "js/bubble-sort#1",
+    "tech": "js",
+    "domain": "algorithms",
+    "topic": "bubble-sort",
+    "step": 1,
+    "content": "Compare adjacent elements and swap when the left value is larger."
+  },
+  {
+    "id": "js/bubble-sort#2",
+    "tech": "js",
+    "domain": "algorithms",
+    "topic": "bubble-sort",
+    "step": 2,
+    "content": "After each pass, the largest remaining element is fixed at the sorted boundary."
+  },
+  {
+    "id": "js/two-pointers#1",
+    "tech": "js",
+    "domain": "algorithms",
+    "topic": "two-pointers",
+    "step": 1,
+    "content": "Two pointers move under an invariant so discarded regions never need to be scanned again."
+  },
+  {
+    "id": "ts/sliding-window#1",
+    "tech": "ts",
+    "domain": "algorithms",
+    "topic": "sliding-window",
+    "step": 1,
+    "content": "A sliding window maintains incremental state while its left and right boundaries move."
+  },
+  {
+    "id": "ts/sliding-window#2",
+    "tech": "ts",
+    "domain": "algorithms",
+    "topic": "sliding-window",
+    "step": 2,
+    "content": "Expand by adding the entering value and shrink by removing the leaving value."
+  },
+  {
+    "id": "go/bfs#1",
+    "tech": "go",
+    "domain": "algorithms",
+    "topic": "bfs",
+    "step": 1,
+    "content": "Breadth-first search uses a FIFO queue to process a graph or grid layer by layer."
+  },
+  {
+    "id": "go/bfs#2",
+    "tech": "go",
+    "domain": "algorithms",
+    "topic": "bfs",
+    "step": 2,
+    "content": "Mark a cell visited when it enters the queue to prevent duplicate frontier work."
+  },
+  {
+    "id": "go/dfs#1",
+    "tech": "go",
+    "domain": "algorithms",
+    "topic": "dfs",
+    "step": 1,
+    "content": "Depth-first search uses a LIFO stack or recursion to follow one branch before backtracking."
+  },
+  {
+    "id": "engineering/software-systems#1",
+    "tech": "general",
+    "domain": "engineering",
+    "topic": "software-systems",
+    "step": 1,
+    "content": "A useful software boundary owns one responsibility and exposes an explicit contract to the next layer."
+  },
+  {
+    "id": "js/execution-model#1",
+    "tech": "js",
+    "domain": "languages",
+    "topic": "javascript-runtime",
+    "step": 1,
+    "content": "JavaScript runs the current call stack to completion before the event loop schedules queued callbacks."
+  },
+  {
+    "id": "architecture/cdn#1",
+    "tech": "general",
+    "domain": "architecture",
+    "topic": "cdn",
+    "step": 1,
+    "content": "A CDN edge serves cached content near the client and fetches from the origin on a cache miss."
+  },
+  {
+    "id": "data/relational-modeling#1",
+    "tech": "sql",
+    "domain": "data",
+    "topic": "relational-modeling",
+    "step": 1,
+    "content": "Primary keys identify rows and foreign keys protect relationships between relational tables."
+  },
+  {
+    "id": "cloud/containers#1",
+    "tech": "general",
+    "domain": "cloud",
+    "topic": "containers",
+    "step": 1,
+    "content": "An image is an immutable layered build artifact; a container is a running process created from that image."
+  },
+  {
+    "id": "ai-foundations/vectors#1",
+    "tech": "python",
+    "domain": "ai-foundations",
+    "topic": "vectors",
+    "step": 1,
+    "content": "A feature vector represents one example as numeric coordinates that models can transform and compare."
+  },
+  {
+    "id": "ai-engineering/agent-loop#1",
+    "tech": "general",
+    "domain": "ai-engineering",
+    "topic": "agent-loop",
+    "step": 1,
+    "content": "A bounded agent loop turns a goal into a decision, calls an allowed tool, observes evidence, and evaluates the result."
+  },
+  {
+    "id": "communication/active-reading#1",
+    "tech": "en",
+    "domain": "communication",
+    "topic": "active-reading",
+    "step": 1,
+    "content": "Active technical reading converts a chapter into questions, recall prompts, and small applications instead of copied highlights."
+  }
+]

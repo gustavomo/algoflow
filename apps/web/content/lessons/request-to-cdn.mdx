@@ -1,0 +1,13 @@
+A global request crosses several decision points before bytes reach the user.
+
+<Hint>
+  A CDN is a cache boundary near users, not a replacement for the origin.
+</Hint>
+
+## Trace delivery
+
+DNS directs the client toward an appropriate edge. The edge checks its cache. A hit avoids an origin round trip; a miss fetches from the origin, returns the response, and may store it according to cache policy.
+
+## Design with evidence
+
+State what can be cached, for how long, and how invalidation works. Then measure hit ratio and tail latency. A CDN improves a specific delivery path; it does not automatically fix slow dynamic work.

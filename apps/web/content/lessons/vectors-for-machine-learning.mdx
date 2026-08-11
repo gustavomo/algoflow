@@ -1,0 +1,14 @@
+A vector represents one example as an ordered set of numeric features.
+
+<Hint>
+  Coordinate meaning must remain stable: the third value should represent the
+  same feature for every example.
+</Hint>
+
+## Geometry becomes computation
+
+Magnitude describes size, direction captures relative proportions, and a dot product combines aligned components. Models use transformations to map input vectors into representations that make a task easier.
+
+## Scale matters
+
+Distance can be dominated by a feature with a much larger numeric range. Inspect units, normalize when the model requires it, and keep preprocessing identical between training and inference.
