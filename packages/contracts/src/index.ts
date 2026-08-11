@@ -14,6 +14,45 @@ export type CurriculumDomain = (typeof CURRICULUM_DOMAINS)[number];
 export type Tech = 'js' | 'ts' | 'go' | 'sql' | 'python' | 'general' | 'en';
 export type LearningLevel = 'foundation' | 'intermediate' | 'advanced';
 
+export const AI_PROVIDER_IDS = [
+  'mock',
+  'openai',
+  'codex-cli',
+  'claude-cli',
+] as const;
+export type AIProviderId = (typeof AI_PROVIDER_IDS)[number];
+
+export const AI_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type AIEffort = (typeof AI_EFFORTS)[number];
+
+export interface AIProviderSelection {
+  provider: AIProviderId;
+  model?: string;
+  effort?: AIEffort;
+}
+
+export interface AIProviderConfiguration {
+  provider: AIProviderId;
+  model: string;
+  effort?: AIEffort;
+}
+
+export interface AIProviderCapability {
+  id: AIProviderId;
+  label: string;
+  available: boolean;
+  models: string[];
+  efforts: AIEffort[];
+  defaultModel: string;
+  defaultEffort?: AIEffort;
+  unavailableReason?: string;
+}
+
+export interface AIProviderCatalog {
+  providers: AIProviderCapability[];
+  defaultSelection: AIProviderConfiguration;
+}
+
 export const LEARNING_RESOURCE_KINDS = [
   'documentation',
   'course',
@@ -517,7 +556,9 @@ export interface DesignProposal {
   rationale: string;
   operations: GraphPatchOperation[];
   previewGraph: SystemDesignGraph;
-  provider: 'mock' | 'openai';
+  provider: AIProviderId;
+  model: string;
+  effort?: AIEffort;
 }
 
 export interface SystemDesignDraft {

@@ -137,6 +137,7 @@ export async function proposeSimulationDesign(
     graph: SystemDesignGraph;
     question?: string;
     phaseId?: string;
+    signal?: AbortSignal;
   },
 ) {
   const scenario = scenarioBySlug.get(input.scenarioSlug);
@@ -154,12 +155,17 @@ export async function proposeSimulationDesign(
     graph: input.graph,
     question: input.question,
     phase,
+    signal: input.signal,
   });
   const proposal = validatedProposal(
     input.graph,
     output.operations,
     output.rationale,
-    provider.provider,
+    {
+      provider: provider.provider,
+      model: provider.model,
+      effort: provider.effort,
+    },
   );
   return proposal
     ? { value: proposal }

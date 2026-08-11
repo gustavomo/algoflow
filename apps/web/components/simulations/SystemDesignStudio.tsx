@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMachine } from '@xstate/react';
 import {
   SYSTEM_NODE_TYPES,
+  type AIProviderSelection,
   type DesignProposal,
   type SystemChallengeDefinition,
   type SystemChallengeRunResult,
@@ -18,6 +19,7 @@ import {
 import playbackMachine from '../../lib/xstate/playbackMachine';
 import { createSystemFlowSteps } from '../../lib/simulations/flowSteps';
 import PlaybackBar from '../animation/PlaybackBar';
+import ProviderControls from '../ai/ProviderControls';
 import SystemDesignCanvas from './SystemDesignCanvas';
 import DesignChallengePanel from './DesignChallengePanel';
 import TutorPanel from '../tutor/TutorPanel';
@@ -62,6 +64,8 @@ export default function SystemDesignStudio({
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [proposal, setProposal] = useState<DesignProposal>();
+  const [providerSelection, setProviderSelection] =
+    useState<AIProviderSelection>();
   const [tradeOffs, setTradeOffs] = useState('');
   const [attempts, setAttempts] = useState(initialAttempts);
   const [challengeResult, setChallengeResult] =
@@ -323,6 +327,7 @@ export default function SystemDesignStudio({
         scenarioSlug: scenario.slug,
         graph,
         phaseId: currentPhase?.id,
+        ...providerSelection,
       });
       setProposal(body.proposal);
       setMessage('Proposal ready. Preview it before applying.');
@@ -679,6 +684,12 @@ export default function SystemDesignStudio({
           <p className="mt-3 text-sm leading-6 text-muted">
             Requests one constrained patch. It cannot apply or save changes.
           </p>
+          <ProviderControls
+            idPrefix="design-ai"
+            value={providerSelection}
+            onChange={setProviderSelection}
+            disabled={loading}
+          />
           <button
             onClick={askForProposal}
             disabled={loading}
@@ -689,7 +700,10 @@ export default function SystemDesignStudio({
           {proposal && (
             <div className="mt-5 border-t border-line pt-4">
               <div className="flex items-center justify-between">
-                <span className="eyebrow">Preview · {proposal.provider}</span>
+                <span className="eyebrow">
+                  Preview · {proposal.provider} · {proposal.model}
+                  {proposal.effort ? ` · ${proposal.effort}` : ''}
+                </span>
                 <span className="text-xs text-muted">
                   {proposal.operations.length} ops
                 </span>

@@ -1,10 +1,18 @@
 import OpenAI from 'openai';
-import {
-  SYSTEM_NODE_CONFIG_KEYS,
-  SYSTEM_NODE_TYPES,
-} from '@algoflow/contracts';
+import { type AIProviderSelection } from '@algoflow/contracts';
 import type { GraphPatchOperation, SystemNodeType } from '@algoflow/contracts';
+import {
+  createAIProviderRegistry,
+  resolveAIProvider,
+  type AIProviderRegistry,
+} from '../../../platform/ai/providerRegistry';
+import type { CliProcessRunner } from '../../../platform/process/cliProcessRunner';
 import type { DesignProposalProvider } from '../ports/designProposalProvider';
+import {
+  DESIGN_PROPOSAL_INSTRUCTION,
+  designProposalContext,
+  parseDesignProposalOutput,
+} from './designProposalPrompt';
 
 function missing(
   graph: { nodes: { type: SystemNodeType }[] },
@@ -30,6 +38,7 @@ function hasConnection(
 
 export const mockDesignProposalProvider: DesignProposalProvider = {
   provider: 'mock',
+  model: 'deterministic-v1',
   async propose({ scenario, graph, phase }) {
     let operations: GraphPatchOperation[] = [];
     let rationale =
@@ -271,51 +280,50 @@ const openai = process.env.OPENAI_API_KEY
 
 export const openaiDesignProposalProvider: DesignProposalProvider = {
   provider: 'openai',
-  async propose({ scenario, graph, question, phase }) {
+  model: 'gpt-4o-mini',
+  async propose({ scenario, graph, question, phase, signal }) {
     if (!openai) throw new Error('OpenAI is not configured.');
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Return JSON with rationale and operations only. Operations may be add-node, update-node, remove-node, add-edge, or remove-edge. Use existing IDs or new IDs prefixed suggested-. Never include code or infrastructure commands.',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            goal: scenario.goal,
-            requirements: scenario.requirements,
-            selectedPhase: phase
-              ? {
-                  id: phase.id,
-                  goal: phase.goal,
-                  gate: phase.gate,
-                  allowedFlowIds: phase.flowIds,
-                }
-              : undefined,
-            allowedNodeTypes: SYSTEM_NODE_TYPES,
-            allowedConfigKeys: SYSTEM_NODE_CONFIG_KEYS,
-            graph,
-            question:
-              question ?? 'Improve the highest-priority missing requirement.',
-          }),
-        },
-      ],
-    });
+    const response = await openai.chat.completions.create(
+      {
+        model: openaiDesignProposalProvider.model,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: DESIGN_PROPOSAL_INSTRUCTION,
+          },
+          {
+            role: 'user',
+            content: JSON.stringify(
+              designProposalContext({ scenario, graph, question, phase }),
+            ),
+          },
+        ],
+      },
+      { signal },
+    );
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error('Provider returned no proposal.');
-    return JSON.parse(content) as {
-      rationale: string;
-      operations: GraphPatchOperation[];
-    };
+    return parseDesignProposalOutput(content);
   },
 };
 
-export function getDesignProposalProvider() {
-  return process.env.MOCK_AI === '1' || !process.env.OPENAI_API_KEY
-    ? mockDesignProposalProvider
-    : openaiDesignProposalProvider;
+export async function getDesignProposalProvider(
+  selection?: AIProviderSelection,
+  runner?: CliProcessRunner,
+  providedRegistry?: AIProviderRegistry,
+) {
+  const registry = providedRegistry ?? (await createAIProviderRegistry());
+  const resolved = resolveAIProvider(registry, selection);
+  if (resolved.provider === 'mock') return mockDesignProposalProvider;
+  if (resolved.provider === 'openai') return openaiDesignProposalProvider;
+  const { createCliDesignProposalProvider } = await import(
+    './cliDesignProposalProvider'
+  );
+  return createCliDesignProposalProvider(
+    resolved,
+    resolved.executable!,
+    runner,
+  );
 }

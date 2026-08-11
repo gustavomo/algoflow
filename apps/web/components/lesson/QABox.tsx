@@ -1,12 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import type { CurriculumDomain, RagChunk, Tech } from '@algoflow/contracts';
+import type {
+  AIEffort,
+  AIProviderId,
+  AIProviderSelection,
+  CurriculumDomain,
+  RagChunk,
+  Tech,
+} from '@algoflow/contracts';
+import ProviderControls from '../ai/ProviderControls';
 
 interface AskResponse {
   answer: string;
   citations: RagChunk[];
-  provider: 'mock' | 'openai';
+  provider: AIProviderId;
+  model: string;
+  effort?: AIEffort;
   cached: boolean;
 }
 
@@ -23,6 +33,8 @@ export default function QABox({
   const [result, setResult] = useState<AskResponse | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [providerSelection, setProviderSelection] =
+    useState<AIProviderSelection>();
 
   async function ask() {
     if (!question.trim()) {
@@ -35,7 +47,13 @@ export default function QABox({
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, tech, domain, lessonSlug }),
+        body: JSON.stringify({
+          question,
+          tech,
+          domain,
+          lessonSlug,
+          ...providerSelection,
+        }),
       });
       const body = await response.json();
       if (!response.ok)
@@ -68,10 +86,18 @@ export default function QABox({
         {result && (
           <span className="rounded-full border border-line px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-subtle">
             {result.provider}
+            {` · ${result.model}`}
+            {result.effort ? ` · ${result.effort}` : ''}
             {result.cached ? ' · cached' : ''}
           </span>
         )}
       </div>
+      <ProviderControls
+        idPrefix="lesson-ai"
+        value={providerSelection}
+        onChange={setProviderSelection}
+        disabled={loading}
+      />
       <textarea
         value={question}
         onChange={(event) => setQuestion(event.target.value)}
