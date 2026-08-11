@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMachine } from '@xstate/react';
 import type {
   ConceptFlowNarrative,
@@ -13,6 +13,7 @@ import {
 } from '../../lib/algorithms/pointerSteps';
 import playbackMachine from '../../lib/xstate/playbackMachine';
 import BubbleSortViz from '../animation/BubbleSortViz';
+import BubbleSortChallenge from './BubbleSortChallenge';
 import ConceptFlowViz from '../animation/ConceptFlowViz';
 import ComplexityViz from '../animation/ComplexityViz';
 import PixiCanvas from '../animation/PixiCanvas';
@@ -29,6 +30,9 @@ export default function LessonVizPlayer({
   conceptFlow?: ConceptFlowNarrative;
 }) {
   const [state, send] = useMachine(playbackMachine);
+  const [bubbleMode, setBubbleMode] = useState<'challenge' | 'review'>(
+    'challenge',
+  );
   const sequence = useMemo(() => {
     if (visualizationKind === 'bubble-sort')
       return createBubbleSortSteps([5, 3, 8, 4, 2]);
@@ -45,6 +49,8 @@ export default function LessonVizPlayer({
     send({ type: 'SETUP', totalSteps: sequence.length });
   }, [send, sequence.length, slug]);
   useEffect(() => {
+    if (visualizationKind === 'bubble-sort' && bubbleMode === 'challenge')
+      return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (
@@ -68,7 +74,7 @@ export default function LessonVizPlayer({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [send, state]);
+  }, [bubbleMode, send, state, visualizationKind]);
 
   const index = Math.min(state.context.stepIndex, sequence.length - 1);
   let visualization = <ComplexityViz step={index} />;
@@ -109,6 +115,47 @@ export default function LessonVizPlayer({
       />
     );
   }
+
+  if (visualizationKind === 'bubble-sort')
+    return (
+      <div>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-canvas/60 p-3">
+          <div>
+            <p className="eyebrow">Learning mode</p>
+            <p className="mt-1 text-xs text-subtle">
+              Predict first, then inspect the full trace.
+            </p>
+          </div>
+          <div className="flex rounded-xl border border-line p-1">
+            {(['challenge', 'review'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => {
+                  setBubbleMode(mode);
+                  send({ type: 'RESET' });
+                }}
+                aria-pressed={bubbleMode === mode}
+                className={`min-h-10 rounded-lg px-4 py-2 text-xs font-semibold capitalize ${
+                  bubbleMode === mode
+                    ? 'bg-ink text-canvas'
+                    : 'text-subtle hover:text-ink'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+        {bubbleMode === 'challenge' ? (
+          <BubbleSortChallenge />
+        ) : (
+          <>
+            {visualization}
+            <PlaybackBar state={state} send={send} />
+          </>
+        )}
+      </div>
+    );
 
   return (
     <div>

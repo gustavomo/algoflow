@@ -1,11 +1,16 @@
 import type {
   ReviewState,
+  SystemChallengeRunRequest,
   SystemDesignAttempt,
   SystemDesignDraft,
   SystemDesignGraph,
 } from '@algoflow/contracts';
 import type { ReviewRepository } from '../../review/ports/reviewRepository';
 import { scenarioBySlug, systemDesignScenarios } from '../domain/scenarios';
+import {
+  getChallengeForScenario,
+  runDesignChallenge,
+} from '../domain/challenges';
 import {
   evaluateSystemDesign,
   validatedProposal,
@@ -35,9 +40,16 @@ export async function getSimulationWorkspace(
   if (!scenario) return undefined;
   return {
     scenario,
+    challenge: getChallengeForScenario(scenarioSlug),
     draft: await repository.getDraft(scenarioSlug),
     attempts: await repository.listAttempts(scenarioSlug),
   };
+}
+
+export function runSimulationChallenge(input: SystemChallengeRunRequest) {
+  if (!scenarioBySlug.has(input.scenarioSlug))
+    return { missing: true as const, error: 'Scenario not found.' };
+  return runDesignChallenge(input);
 }
 
 export async function saveSimulationDraft(

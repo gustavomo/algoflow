@@ -11,7 +11,7 @@ export default async function SimulationPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { scenario, draft, attempts } = await getSimulation(slug);
+  const { scenario, challenge, draft, attempts } = await getSimulation(slug);
   return (
     <AppShell>
       <Link href="/simulations" className="text-sm text-subtle hover:text-ink">
@@ -39,6 +39,7 @@ export default async function SimulationPage({
       </div>
       <SystemDesignStudio
         scenario={scenario}
+        challenge={challenge}
         draft={draft}
         initialAttempts={attempts}
       />

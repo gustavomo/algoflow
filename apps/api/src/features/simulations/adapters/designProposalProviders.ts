@@ -228,7 +228,8 @@ export const mockDesignProposalProvider: DesignProposalProvider = {
       const ids = new Map<SystemNodeType, string>();
       for (const [index, type] of firstFlow.nodeTypes.entries()) {
         const existingId = nodeId(graph, type);
-        const id = existingId ?? `suggested-${scenario.slug}-${type}`.slice(0, 80);
+        const id =
+          existingId ?? `suggested-${scenario.slug}-${type}`.slice(0, 80);
         ids.set(type, id);
         if (!existingId)
           operations.push({

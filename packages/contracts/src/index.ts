@@ -554,6 +554,238 @@ export interface SystemDesignAttempt {
   createdAt: string;
 }
 
+export const SYSTEM_CHALLENGE_LOAD_PROFILES = [
+  'baseline',
+  'surge',
+  'extreme',
+] as const;
+export type SystemChallengeLoadProfile =
+  (typeof SYSTEM_CHALLENGE_LOAD_PROFILES)[number];
+
+export const SYSTEM_CHALLENGE_FAILURES = [
+  'load-spike',
+  'dependency-timeout',
+  'replica-lag',
+  'region-outage',
+] as const;
+export type SystemChallengeFailure = (typeof SYSTEM_CHALLENGE_FAILURES)[number];
+
+export const SYSTEM_CHALLENGE_EFFECTS = [
+  'latency-rise',
+  'queue-pressure',
+  'availability-loss',
+  'stale-read',
+  'recovery-path',
+  'cutover-risk',
+  'throttled-load',
+] as const;
+export type SystemChallengeEffect = (typeof SYSTEM_CHALLENGE_EFFECTS)[number];
+
+export const SYSTEM_CHALLENGE_METRICS = [
+  'latency',
+  'availability',
+  'queue-pressure',
+  'consistency',
+  'recovery',
+] as const;
+export type SystemChallengeMetricName =
+  (typeof SYSTEM_CHALLENGE_METRICS)[number];
+export type SystemChallengeMetricBand = 'healthy' | 'elevated' | 'critical';
+
+export interface SystemChallengeDefinition {
+  id: string;
+  version: 1;
+  scenarioSlug: string;
+  title: string;
+  objective: string;
+  phaseId?: string;
+  constraints: string[];
+  predictionOptions: SystemChallengeEffect[];
+  loadProfiles: SystemChallengeLoadProfile[];
+  failures: SystemChallengeFailure[];
+}
+
+export interface SystemChallengeRunRequest {
+  scenarioSlug: string;
+  challengeId: string;
+  graph: SystemDesignGraph;
+  phaseId?: string;
+  prediction: SystemChallengeEffect;
+  loadProfile: SystemChallengeLoadProfile;
+  failure: SystemChallengeFailure;
+}
+
+export interface SystemChallengeMetric {
+  name: SystemChallengeMetricName;
+  band: SystemChallengeMetricBand;
+  direction: 'stable' | 'up' | 'down';
+  observation: string;
+}
+
+export interface SystemChallengeStep extends SystemFlowStep {
+  metric?: SystemChallengeMetricName;
+  band?: SystemChallengeMetricBand;
+}
+
+export interface SystemChallengeRunResult {
+  challengeId: string;
+  challengeVersion: 1;
+  scenarioSlug: string;
+  phaseId?: string;
+  educationalModel: true;
+  primaryEffect: SystemChallengeEffect;
+  predictionMatches: boolean;
+  affectedNodeIds: string[];
+  affectedEdgeIds: string[];
+  metrics: SystemChallengeMetric[];
+  steps: SystemChallengeStep[];
+  observations: string[];
+  reflectionPrompt: string;
+}
+
+export const TUTOR_HELP_LEVELS = [
+  'nudge',
+  'guided-question',
+  'explanation',
+] as const;
+export type TutorHelpLevel = (typeof TUTOR_HELP_LEVELS)[number];
+
+export interface BubbleSortTutorContext {
+  kind: 'bubble-sort';
+  lessonSlug: string;
+  phase: 'predict' | 'run' | 'feedback' | 'complete';
+  items: { id: string; value: number }[];
+  selectedItemIds: string[];
+  predictedSwap?: boolean;
+  predictionCorrect?: boolean;
+  narration: string;
+}
+
+export interface DesignLabTutorContext {
+  kind: 'design-lab';
+  scenarioSlug: string;
+  phaseId?: string;
+  graph: SystemDesignGraph;
+  selectedNodeId?: string;
+  selectedEdgeId?: string;
+  challengeResult?: SystemChallengeRunResult;
+  failedRuleIds?: string[];
+}
+
+export type TutorSceneContext = BubbleSortTutorContext | DesignLabTutorContext;
+
+export type TutorOverlay =
+  | {
+      kind: 'highlight-items';
+      itemIds: string[];
+      label: string;
+    }
+  | {
+      kind: 'highlight-system';
+      nodeIds: string[];
+      edgeIds: string[];
+      label: string;
+    }
+  | {
+      kind: 'focus-phase';
+      phaseId: string;
+      label: string;
+    }
+  | {
+      kind: 'focus-metric';
+      metric: SystemChallengeMetricName;
+      label: string;
+    };
+
+export interface TutorRequest {
+  question: string;
+  helpLevel: TutorHelpLevel;
+  context: TutorSceneContext;
+  citations?: string[];
+}
+
+export interface TutorResponse {
+  message: string;
+  followUpQuestion?: string;
+  overlay?: TutorOverlay;
+  citations: RagChunk[];
+  provider: 'mock' | 'openai';
+  cached: boolean;
+}
+
+export type ScenarioDraftDifficulty =
+  | 'foundation'
+  | 'intermediate'
+  | 'advanced';
+
+export interface BubbleSortScenarioDraft {
+  id: string;
+  version: 1;
+  kind: 'bubble-sort';
+  title: string;
+  objective: string;
+  difficulty: ScenarioDraftDifficulty;
+  values: number[];
+  expectedFinal: number[];
+}
+
+export interface DesignLabScenarioDraft {
+  id: string;
+  version: 1;
+  kind: 'design-lab';
+  title: string;
+  objective: string;
+  difficulty: ScenarioDraftDifficulty;
+  scenarioSlug: string;
+  challengeId: string;
+  loadProfile: SystemChallengeLoadProfile;
+  failure: SystemChallengeFailure;
+  predictionOptions: SystemChallengeEffect[];
+  expectedPrimaryEffect: SystemChallengeEffect;
+}
+
+export type LearningScenarioDraft =
+  | BubbleSortScenarioDraft
+  | DesignLabScenarioDraft;
+
+export type ScenarioEvalCategory =
+  | 'schema'
+  | 'bounds'
+  | 'references'
+  | 'solvability'
+  | 'state-consistency'
+  | 'impossible-states'
+  | 'visual-clarity';
+
+export interface ScenarioEvalCheck {
+  id: string;
+  category: ScenarioEvalCategory;
+  status: 'pass' | 'fail';
+  blocking: boolean;
+  evidence: string;
+  subjectIds?: string[];
+}
+
+export interface ScenarioEvalReport {
+  suiteVersion: 1;
+  draftDigest: string;
+  passed: boolean;
+  humanReviewRequired: true;
+  checks: ScenarioEvalCheck[];
+}
+
+export interface ScenarioDraftGenerationRequest {
+  kind: LearningScenarioDraft['kind'];
+  objective: string;
+  difficulty: ScenarioDraftDifficulty;
+}
+
+export interface ScenarioDraftResult {
+  draft: LearningScenarioDraft;
+  report: ScenarioEvalReport;
+  provider: 'mock' | 'openai';
+}
+
 export interface ApiErrorPayload {
   error: {
     code: string;
