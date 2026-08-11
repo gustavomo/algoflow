@@ -14,9 +14,9 @@ import {
   type SystemNodeType,
 } from '@algoflow/contracts';
 import { scenarioBySlug } from './scenarios';
-import { validateSystemGraph } from './systemDesign';
+import { evaluateSystemDesign, validateSystemGraph } from './systemDesign';
 
-const challengeDefinitions: readonly SystemChallengeDefinition[] = [
+const authoredChallengeDefinitions: readonly SystemChallengeDefinition[] = [
   {
     id: 'url-shortener-traffic-spike',
     version: 1,
@@ -84,6 +84,63 @@ const challengeDefinitions: readonly SystemChallengeDefinition[] = [
   },
 ];
 
+function genericFailureFor(scenario: SystemDesignScenario) {
+  if (scenario.category === 'migration') return 'dependency-timeout' as const;
+  if (scenario.category === 'database') return 'replica-lag' as const;
+  if (scenario.category === 'reliability') return 'region-outage' as const;
+  return 'load-spike' as const;
+}
+
+function predictionOptionsFor(
+  failure: ReturnType<typeof genericFailureFor>,
+): SystemChallengeEffect[] {
+  if (failure === 'replica-lag')
+    return ['stale-read', 'cutover-risk', 'recovery-path'];
+  if (failure === 'region-outage')
+    return ['availability-loss', 'cutover-risk', 'recovery-path'];
+  if (failure === 'dependency-timeout')
+    return ['latency-rise', 'availability-loss', 'recovery-path'];
+  return ['queue-pressure', 'latency-rise', 'throttled-load'];
+}
+
+const authoredScenarioSlugs = new Set(
+  authoredChallengeDefinitions.map((definition) => definition.scenarioSlug),
+);
+
+const generatedChallengeDefinitions: SystemChallengeDefinition[] = [
+  ...scenarioBySlug.values(),
+]
+  .filter((scenario) => !authoredScenarioSlugs.has(scenario.slug))
+  .map((scenario) => {
+    const failure = genericFailureFor(scenario);
+    return {
+      id: `${scenario.slug}-failure-rehearsal`,
+      version: 1,
+      scenarioSlug: scenario.slug,
+      title: `Predict failure in ${scenario.title}`,
+      objective:
+        'Predict the dominant modeled effect, run the current graph, and compare the result with deterministic rubric evidence.',
+      phaseId:
+        scenario.category === 'migration'
+          ? scenario.phases?.find((phase) => phase.id === 'cutover')?.id
+          : undefined,
+      constraints: scenario.rubric
+        .slice(0, 3)
+        .map((rule) => `${rule.title}: ${rule.success}`),
+      predictionOptions:
+        scenario.category === 'migration'
+          ? ['cutover-risk', 'latency-rise', 'recovery-path']
+          : predictionOptionsFor(failure),
+      loadProfiles: [...SYSTEM_CHALLENGE_LOAD_PROFILES],
+      failures: [failure],
+    };
+  });
+
+const challengeDefinitions: readonly SystemChallengeDefinition[] = [
+  ...authoredChallengeDefinitions,
+  ...generatedChallengeDefinitions,
+];
+
 const definitionByScenario = new Map(
   challengeDefinitions.map((definition) => [
     definition.scenarioSlug,
@@ -149,13 +206,14 @@ function relatedEdgeIds(graph: SystemDesignGraph, nodeIds: string[]) {
 
 function step(
   node: SystemNode | undefined,
+  phase: SystemChallengeStep['phase'],
   label: string,
   narration: string,
   metric?: SystemChallengeStep['metric'],
   band?: SystemChallengeStep['band'],
 ): SystemChallengeStep | undefined {
   if (!node) return undefined;
-  return { nodeId: node.id, label, narration, metric, band };
+  return { nodeId: node.id, phase, label, narration, metric, band };
 }
 
 function compactSteps(
@@ -321,6 +379,33 @@ function evaluateEffect(input: SystemChallengeRunRequest) {
         ? 'stale-read'
         : 'cutover-risk';
   }
+  if (scenarioSlug !== 'overload-protection') {
+    const scenario = scenarioBySlug.get(scenarioSlug)!;
+    const evaluation = evaluateSystemDesign(
+      scenario,
+      graph,
+      'The design deliberately balances correctness, availability, recovery, and operational cost across the modeled failure.',
+    );
+    const passedCategories = new Set(
+      evaluation.evidence
+        .filter((item) => item.passed)
+        .map((item) => item.category),
+    );
+    const recoveryReady =
+      evaluation.passed ||
+      passedCategories.has('migration-safety') ||
+      (passedCategories.has('availability') &&
+        passedCategories.has('durability'));
+    if (scenario.category === 'migration')
+      return recoveryReady ? 'recovery-path' : 'cutover-risk';
+    if (input.failure === 'replica-lag')
+      return recoveryReady ? 'recovery-path' : 'stale-read';
+    if (input.failure === 'region-outage')
+      return recoveryReady ? 'recovery-path' : 'availability-loss';
+    if (input.failure === 'dependency-timeout')
+      return recoveryReady ? 'recovery-path' : 'latency-rise';
+    return evaluation.passed ? 'throttled-load' : 'queue-pressure';
+  }
   const bounded =
     hasNode(graph, 'load-balancer') &&
     hasNode(graph, 'queue') &&
@@ -368,7 +453,7 @@ function affectedNodes(
   };
   const allowed = new Set(typesByScenario[scenarioSlug] ?? []);
   const nodes = graph.nodes.filter((node) => allowed.has(node.type));
-  return nodes.length ? nodes : graph.nodes.slice(0, 1);
+  return nodes.length ? nodes : graph.nodes.slice(0, 5);
 }
 
 function buildSteps(
@@ -394,6 +479,7 @@ function buildSteps(
   return compactSteps([
     step(
       first,
+      'initial',
       'Inject condition',
       `The ${scenarioSlug.replaceAll('-', ' ')} model receives the selected load and failure.`,
       'latency',
@@ -401,6 +487,9 @@ function buildSteps(
     ),
     step(
       boundary,
+      effect === 'recovery-path' || effect === 'throttled-load'
+        ? 'recovery'
+        : 'failure',
       'Reach the control boundary',
       'The simulation checks only controls that exist in the current graph.',
       effect === 'queue-pressure' ? 'queue-pressure' : 'availability',
@@ -410,6 +499,7 @@ function buildSteps(
     ),
     step(
       dependency,
+      'terminal',
       'Observe the dominant effect',
       `The conceptual model resolves to ${effect.replaceAll('-', ' ')}.`,
       metricsFor(effect, loadProfile)[0]?.name,
@@ -426,10 +516,14 @@ export function validateDesignChallengeCatalog(
     scenarios.map((scenario) => [scenario.slug, scenario]),
   );
   const challengeIds = new Set<string>();
+  const challengedScenarios = new Set<string>();
   for (const definition of challengeDefinitions) {
     if (challengeIds.has(definition.id))
       errors.push(`Duplicate challenge ID: ${definition.id}`);
     challengeIds.add(definition.id);
+    if (challengedScenarios.has(definition.scenarioSlug))
+      errors.push(`Duplicate challenge scenario: ${definition.scenarioSlug}`);
+    challengedScenarios.add(definition.scenarioSlug);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(definition.id))
       errors.push(`Invalid challenge ID: ${definition.id}`);
     if (definition.version !== 1)
@@ -481,6 +575,9 @@ export function validateDesignChallengeCatalog(
     )
       errors.push(`Challenge ${definition.id} has invalid run controls.`);
   }
+  for (const scenario of scenarios)
+    if (!challengedScenarios.has(scenario.slug))
+      errors.push(`Missing challenge scenario: ${scenario.slug}`);
   return errors;
 }
 

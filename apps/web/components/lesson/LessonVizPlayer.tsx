@@ -11,12 +11,14 @@ import {
   createSlidingWindowSteps,
   createTwoPointerSteps,
 } from '../../lib/algorithms/pointerSteps';
+import { createComplexitySteps } from '../../lib/algorithms/complexitySteps';
+import { createGridTraversalSteps } from '../../lib/algorithms/gridTraversal';
 import playbackMachine from '../../lib/xstate/playbackMachine';
 import BubbleSortViz from '../animation/BubbleSortViz';
 import BubbleSortChallenge from './BubbleSortChallenge';
 import ConceptFlowViz from '../animation/ConceptFlowViz';
 import ComplexityViz from '../animation/ComplexityViz';
-import PixiCanvas from '../animation/PixiCanvas';
+import GridTraversalViz from '../animation/GridTraversalViz';
 import PlaybackBar from '../animation/PlaybackBar';
 import TwoPointersViz from '../animation/TwoPointersViz';
 
@@ -39,10 +41,14 @@ export default function LessonVizPlayer({
     if (visualizationKind === 'two-pointers') return createTwoPointerSteps();
     if (visualizationKind === 'sliding-window')
       return createSlidingWindowSteps();
-    if (visualizationKind === 'complexity') return [0, 1, 2];
+    if (visualizationKind === 'complexity') return createComplexitySteps();
+    if (visualizationKind === 'bfs-grid')
+      return createGridTraversalSteps('bfs');
+    if (visualizationKind === 'dfs-grid')
+      return createGridTraversalSteps('dfs');
     if (visualizationKind === 'concept-flow' && conceptFlow)
       return conceptFlow.steps;
-    return Array.from({ length: 11 }, (_, index) => index);
+    return createComplexitySteps();
   }, [conceptFlow, visualizationKind]);
 
   useEffect(() => {
@@ -77,7 +83,13 @@ export default function LessonVizPlayer({
   }, [bubbleMode, send, state, visualizationKind]);
 
   const index = Math.min(state.context.stepIndex, sequence.length - 1);
-  let visualization = <ComplexityViz step={index} />;
+  let visualization = (
+    <ComplexityViz
+      snapshot={
+        sequence[index] as ReturnType<typeof createComplexitySteps>[number]
+      }
+    />
+  );
   if (visualizationKind === 'bubble-sort')
     visualization = (
       <BubbleSortViz
@@ -93,18 +105,14 @@ export default function LessonVizPlayer({
     const step = sequence[index] as ReturnType<
       typeof createTwoPointerSteps
     >[number];
-    visualization = (
-      <>
-        <TwoPointersViz length={7} left={step.left} right={step.right} />
-        <p className="mt-4 min-h-6 text-sm text-muted">{step.narration}</p>
-      </>
-    );
+    visualization = <TwoPointersViz snapshot={step} mode={visualizationKind} />;
   }
   if (visualizationKind === 'bfs-grid' || visualizationKind === 'dfs-grid')
     visualization = (
-      <PixiCanvas
-        mode={visualizationKind === 'bfs-grid' ? 'bfs' : 'dfs'}
-        step={index}
+      <GridTraversalViz
+        snapshot={
+          sequence[index] as ReturnType<typeof createGridTraversalSteps>[number]
+        }
       />
     );
   if (visualizationKind === 'concept-flow' && conceptFlow) {
@@ -119,14 +127,14 @@ export default function LessonVizPlayer({
   if (visualizationKind === 'bubble-sort')
     return (
       <div>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-canvas/60 p-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-y border-line py-3">
           <div>
             <p className="eyebrow">Learning mode</p>
             <p className="mt-1 text-xs text-subtle">
               Predict first, then inspect the full trace.
             </p>
           </div>
-          <div className="flex rounded-xl border border-line p-1">
+          <div className="flex border border-line p-1">
             {(['challenge', 'review'] as const).map((mode) => (
               <button
                 key={mode}
@@ -135,7 +143,7 @@ export default function LessonVizPlayer({
                   send({ type: 'RESET' });
                 }}
                 aria-pressed={bubbleMode === mode}
-                className={`min-h-10 rounded-lg px-4 py-2 text-xs font-semibold capitalize ${
+                className={`min-h-10 px-4 py-2 text-xs font-semibold capitalize ${
                   bubbleMode === mode
                     ? 'bg-ink text-canvas'
                     : 'text-subtle hover:text-ink'

@@ -48,7 +48,7 @@ export default async function TrackPage({
           </span>
         ))}
       </div>
-      <div className="mt-10 grid gap-5 lg:grid-cols-3">
+      <div className="mt-10 border-y border-line">
         {track.pathSlugs.map((pathSlug, index) => {
           const path = pathBySlug.get(pathSlug)!;
           const done = path.lessonSlugs.filter((lessonSlug) =>
@@ -58,16 +58,20 @@ export default async function TrackPage({
             <Link
               key={path.slug}
               href={`/paths/${path.slug}`}
-              className="rounded-2xl border border-line bg-surface p-6 transition hover:border-line-strong"
+              className="group grid gap-4 border-b border-line py-6 transition last:border-b-0 lg:grid-cols-[180px_1fr_auto] lg:items-center"
             >
               <p className="eyebrow">
                 Path {index + 1} · {path.level}
               </p>
-              <h2 className="mt-4 text-xl font-semibold">{path.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-subtle">
-                {path.description}
-              </p>
-              <p className="mt-5 text-xs text-muted">
+              <div>
+                <h2 className="text-xl font-semibold transition group-hover:translate-x-1">
+                  {path.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-subtle">
+                  {path.description}
+                </p>
+              </div>
+              <p className="text-xs text-muted lg:text-right">
                 {done}/{path.lessonSlugs.length} lessons ·{' '}
                 {
                   path.modules.filter((module) => module.status === 'practice')

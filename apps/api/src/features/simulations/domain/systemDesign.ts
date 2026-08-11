@@ -303,7 +303,14 @@ export function generateSystemFlow(
     return {
       error: `Add a ${missing.replaceAll('-', ' ')} block to run this flow.`,
     };
-  const steps: SystemFlowStep[] = [];
+  const steps: SystemFlowStep[] = [
+    {
+      nodeId: chosen[0]!.id,
+      phase: 'initial',
+      label: `${template.title} · ready`,
+      narration: `The ${template.title.toLowerCase()} is ready before work crosses the first boundary.`,
+    },
+  ];
   for (let index = 0; index < chosen.length; index += 1) {
     const current = chosen[index]!;
     const previous = chosen[index - 1];
@@ -319,10 +326,18 @@ export function generateSystemFlow(
     steps.push({
       nodeId: current.id,
       edgeId: connecting?.id,
+      phase: 'transition',
       label: `${template.title} · ${index + 1}/${chosen.length}`,
       narration: template.narration[index] ?? `Flow reaches ${current.label}.`,
     });
   }
+  steps.push({
+    nodeId: chosen.at(-1)!.id,
+    edgeId: steps.at(-1)?.edgeId,
+    phase: 'terminal',
+    label: `${template.title} · complete`,
+    narration: `The representative ${template.kind.replaceAll('-', ' ')} flow reached its declared terminal boundary.`,
+  });
   return { steps };
 }
 

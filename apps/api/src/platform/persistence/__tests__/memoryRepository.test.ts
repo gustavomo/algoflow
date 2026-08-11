@@ -140,4 +140,48 @@ describe('MemoryLearningRepository', () => {
       }),
     );
   });
+
+  it('records diagnostic evidence without completing a lesson', async () => {
+    const repository = new MemoryLearningRepository();
+    const suffix = crypto.randomUUID();
+    await repository.recordAssessment({
+      attempt: {
+        id: suffix,
+        assessmentSlug: `diagnostic-${suffix}`,
+        lessonSlug: `path-${suffix}`,
+        score: 75,
+        correctCount: 3,
+        totalCount: 4,
+        answers: {},
+        failedConceptIds: [`readiness-${suffix}`],
+        durationSeconds: 45,
+        createdAt: '2026-08-09T12:00:00.000Z',
+      },
+      updatesLessonProgress: false,
+      updatesMastery: false,
+      evidence: [
+        {
+          conceptId: `readiness-${suffix}`,
+          sourceType: 'checkpoint',
+          sourceId: `diagnostic-${suffix}`,
+          title: 'Readiness diagnostic',
+          prompt: 'Recover the missing prerequisite.',
+          answer: 'Review the path foundation.',
+          correct: false,
+        },
+      ],
+    });
+
+    const snapshot = await repository.getSnapshot();
+    expect(
+      snapshot.progress.some((item) => item.lessonSlug === `path-${suffix}`),
+    ).toBe(false);
+    expect(await repository.getReview(`readiness-${suffix}`)).toEqual(
+      expect.objectContaining({
+        sourceType: 'checkpoint',
+        sourceId: `diagnostic-${suffix}`,
+        lessonSlug: undefined,
+      }),
+    );
+  });
 });

@@ -105,11 +105,11 @@ export default function DesignChallengePanel({
   }
 
   return (
-    <section className="panel overflow-hidden">
-      <div className="border-b border-line bg-surface-raised p-5">
+    <section className="border-y border-line">
+      <div className="border-b border-line py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="eyebrow">Interactive failure lab</p>
-          <span className="rounded-full border border-line px-3 py-1 font-mono text-[10px] uppercase tracking-[.14em] text-subtle">
+          <span className="border-b border-line py-1 font-mono text-[10px] uppercase tracking-[.14em] text-subtle">
             Educational model
           </span>
         </div>
@@ -119,9 +119,9 @@ export default function DesignChallengePanel({
         </p>
       </div>
 
-      <div className="p-5">
+      <div className="py-5">
         {!phaseMatches && definition.phaseId && (
-          <p className="mb-4 rounded-xl border border-warning/30 bg-warning-muted p-3 text-sm text-warning">
+          <p className="mb-4 border-l-2 border-warning py-1 pl-4 text-sm text-warning">
             Select the {humanize(definition.phaseId)} phase to run this
             challenge.
           </p>
@@ -218,7 +218,7 @@ export default function DesignChallengePanel({
           <div className="space-y-5">
             <div
               role="status"
-              className="rounded-xl border border-line-strong bg-surface-raised p-4"
+              className="border-l-2 border-line-strong py-1 pl-4"
             >
               <p className="eyebrow">
                 {result.predictionMatches
@@ -233,11 +233,11 @@ export default function DesignChallengePanel({
               </p>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid border-y border-line sm:grid-cols-2 sm:divide-x sm:divide-line">
               {result.metrics.map((metric) => (
                 <div
                   key={metric.name}
-                  className="rounded-xl border border-line p-3"
+                  className="border-b border-line p-3 last:border-b-0 sm:border-b-0"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs capitalize text-subtle">
@@ -254,7 +254,7 @@ export default function DesignChallengePanel({
               ))}
             </div>
 
-            <div className="rounded-xl border border-line bg-canvas/60 p-4">
+            <div className="border-y border-line py-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="eyebrow">Trace the consequence</p>
                 <span className="text-xs text-subtle">{activeStep?.label}</span>
@@ -266,7 +266,7 @@ export default function DesignChallengePanel({
             </div>
 
             {state.matches('reflecting') ? (
-              <div className="rounded-xl border border-line-strong p-4">
+              <div className="border-l-2 border-line-strong py-1 pl-4">
                 <p className="eyebrow">Reflection</p>
                 <p className="mt-2 text-sm leading-6 text-ink-soft">
                   {result.reflectionPrompt}

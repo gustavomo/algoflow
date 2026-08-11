@@ -11,13 +11,13 @@ interface Props {
 export default function PlaybackBar({ state, send }: Props) {
   const { stepIndex, totalSteps, speedMs } = state.context;
   return (
-    <div className="mt-5 rounded-2xl border border-line bg-canvas/60 p-4">
+    <div className="mt-5 border-t border-line pt-4">
       <div className="flex flex-wrap items-center gap-2">
         <button
           aria-label="Previous step"
           onClick={() => send({ type: 'PREV' })}
           disabled={stepIndex === 0}
-          className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-30"
+          className="border border-line px-3 py-2 text-sm disabled:opacity-30"
         >
           ←
         </button>
@@ -26,7 +26,7 @@ export default function PlaybackBar({ state, send }: Props) {
           onClick={() =>
             send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' })
           }
-          className="min-w-24 rounded-lg bg-action px-4 py-2 text-sm font-semibold text-canvas"
+          className="min-w-24 bg-action px-4 py-2 text-sm font-semibold text-canvas"
         >
           {state.matches('playing')
             ? 'Pause'
@@ -38,7 +38,7 @@ export default function PlaybackBar({ state, send }: Props) {
           aria-label="Next step"
           onClick={() => send({ type: 'NEXT' })}
           disabled={stepIndex >= totalSteps - 1}
-          className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-30"
+          className="border border-line px-3 py-2 text-sm disabled:opacity-30"
         >
           →
         </button>
@@ -50,7 +50,7 @@ export default function PlaybackBar({ state, send }: Props) {
             onChange={(event) =>
               send({ type: 'SPEED', speedMs: Number(event.target.value) })
             }
-            className="rounded-lg border border-line bg-surface px-2 py-2 text-ink-soft"
+            className="border border-line bg-surface px-2 py-2 text-ink-soft"
           >
             <option value={1200}>0.5×</option>
             <option value={700}>1×</option>

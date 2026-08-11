@@ -77,12 +77,12 @@ export default async function SimulationsPage({
           );
         })}
       </nav>
-      <div className="mt-10 grid gap-5 lg:grid-cols-3">
+      <div className="mt-10 border-y border-line">
         {visibleItems.map(({ scenario, draft, latestAttempt }) => (
           <Link
             key={scenario.slug}
             href={`/simulations/${scenario.slug}`}
-            className="group rounded-3xl border border-line bg-surface p-7 transition hover:-translate-y-0.5 hover:border-line-strong"
+            className="group grid gap-5 border-b border-line py-7 transition last:border-b-0 lg:grid-cols-[1fr_1.4fr_auto_auto] lg:items-center"
           >
             <div className="flex items-center justify-between gap-3">
               <span className="eyebrow">
@@ -96,11 +96,15 @@ export default async function SimulationsPage({
                 </span>
               )}
             </div>
-            <h2 className="mt-5 text-2xl font-semibold">{scenario.title}</h2>
-            <p className="mt-3 min-h-20 text-sm leading-6 text-subtle">
-              {scenario.summary}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div>
+              <h2 className="text-2xl font-semibold transition group-hover:translate-x-1">
+                {scenario.title}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-subtle">
+                {scenario.summary}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
               <span className="rounded-full border border-line px-2.5 py-1 text-[10px] text-muted">
                 {scenario.estimatedMinutes} min
               </span>
@@ -113,13 +117,13 @@ export default async function SimulationsPage({
                 </span>
               ))}
             </div>
-            <p className="mt-6 text-sm text-ink">
+            <p className="text-sm text-ink lg:text-right">
               {draft ? 'Resume saved draft' : 'Start scenario'} →
             </p>
           </Link>
         ))}
       </div>
-      <section className="mt-12 rounded-2xl border border-line bg-surface p-6">
+      <section className="mt-12 border-y border-line py-6">
         <p className="eyebrow">How scoring works</p>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
           Versioned rules inspect blocks, connections, configuration, and your

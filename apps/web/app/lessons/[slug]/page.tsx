@@ -11,7 +11,7 @@ import { getCatalog } from '../../../lib/server/learningData';
 
 function Hint({ children }: { children?: ReactNode }) {
   return (
-    <aside className="my-6 rounded-xl border border-line-strong bg-warning-muted p-4 text-sm leading-6 text-ink-soft">
+    <aside className="my-7 border-l-2 border-warning py-1 pl-5 text-sm leading-6 text-ink-soft">
       <span className="mr-2 font-mono text-[10px] uppercase tracking-[0.18em] text-warning">
         Hint
       </span>

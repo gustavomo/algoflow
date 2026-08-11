@@ -17,19 +17,37 @@ export default async function AssessmentPage({
   const lessonBySlug = new Map(lessons.map((lesson) => [lesson.slug, lesson]));
   const assessment = assessmentBySlug.get(slug);
   if (!assessment) notFound();
-  const lesson = lessonBySlug.get(assessment.lessonSlug)!;
+  const lesson = assessment.lessonSlug
+    ? lessonBySlug.get(assessment.lessonSlug)
+    : undefined;
+  const scope = assessment.scope ?? {
+    kind: 'lesson' as const,
+    slug: assessment.lessonSlug ?? '',
+  };
+  const backHref =
+    scope.kind === 'topic'
+      ? `/topics/${scope.slug}`
+      : scope.kind === 'path'
+        ? `/paths/${scope.slug}`
+        : scope.kind === 'simulation'
+          ? `/simulations/${scope.slug}`
+          : `/lessons/${scope.slug}`;
+  const backLabel = lesson?.title ?? scope.slug.replaceAll('-', ' ');
   return (
     <AppShell>
-      <Link href={`/lessons/${lesson.slug}`} className="text-sm text-subtle">
-        ← Back to {lesson.title}
+      <Link href={backHref} className="text-sm text-subtle">
+        ← Back to {backLabel}
       </Link>
       <p className="mt-8 font-mono text-xs uppercase tracking-[0.28em] text-ink-soft">
-        Deterministic assessment
+        {assessment.mode === 'diagnostic'
+          ? 'Readiness diagnostic'
+          : 'Deterministic mastery checkpoint'}
       </p>
       <h1 className="mt-3 text-4xl font-semibold">{assessment.title}</h1>
       <p className="mt-3 text-muted">
-        AI never decides whether an answer is correct. It can explain the result
-        after grading.
+        {assessment.mode === 'diagnostic'
+          ? 'This maps readiness and gaps. It does not complete planned teaching modules.'
+          : 'Passing requires the score threshold and every transfer gate. AI never decides correctness.'}
       </p>
       <div className="mt-10">
         <AssessmentPanel assessment={assessment} />

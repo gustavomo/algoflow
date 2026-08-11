@@ -27,9 +27,19 @@ export default privateApi(async (req: NextApiRequest, res: NextApiResponse) => {
   for (const question of assessment.questions) {
     const answer = answers[question.id];
     const valid =
-      question.kind === 'ordering'
-        ? Array.isArray(answer)
-        : typeof answer === 'string' && answer.trim();
+      question.kind === 'ordering' || question.kind === 'multiple-select'
+        ? Array.isArray(answer) &&
+          answer.length > 0 &&
+          answer.length <= question.options.length &&
+          answer.every(
+            (value) =>
+              typeof value === 'string' &&
+              value.trim().length > 0 &&
+              value.length <= 300,
+          )
+        : typeof answer === 'string' &&
+          answer.trim().length > 0 &&
+          answer.length <= 500;
     if (!valid)
       throw new ApiError(
         400,

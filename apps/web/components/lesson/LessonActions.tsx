@@ -1,7 +1,4 @@
-'use client';
-
 import Link from 'next/link';
-import { useState } from 'react';
 import type { LessonDefinition } from '@algoflow/contracts';
 
 export default function LessonActions({
@@ -9,59 +6,28 @@ export default function LessonActions({
 }: {
   lesson: LessonDefinition;
 }) {
-  const [status, setStatus] = useState('');
-  const [loading, setLoading] = useState(false);
-  async function complete() {
-    setLoading(true);
-    setStatus('');
-    try {
-      const response = await fetch('/api/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lessonSlug: lesson.slug,
-          status: 'completed',
-          percent: 100,
-        }),
-      });
-      const body = await response.json();
-      if (!response.ok)
-        throw new Error(body.error?.message || 'Could not save progress.');
-      setStatus('Lesson completion saved on the server.');
-    } catch (error) {
-      setStatus(
-        error instanceof Error ? error.message : 'Could not save progress.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
   return (
-    <div className="mt-10 rounded-2xl border border-line bg-surface p-5">
-      <p className="font-medium">Ready to prove it?</p>
-      <p className="mt-2 text-sm text-subtle">
-        Save the lesson, then complete its deterministic checkpoint.
-      </p>
-      <div className="mt-5 flex flex-wrap gap-3">
-        <button
-          disabled={loading}
-          onClick={complete}
-          className="rounded-xl border border-line-strong px-4 py-2 text-sm hover:bg-surface disabled:opacity-60"
-        >
-          {loading ? 'Saving…' : 'Mark lesson complete'}
-        </button>
+    <section className="mt-12 border-y border-line py-6">
+      <p className="eyebrow">Mastery boundary</p>
+      <div className="mt-4 grid gap-5 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div>
+          <h2 className="text-xl font-semibold">Viewing is not completion.</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-subtle">
+            Demonstrate recall, application, debugging, teach-back, and
+            transfer. The lesson completes only when the weighted score and
+            every critical gate pass.
+          </p>
+          <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-faint">
+            Concepts · {lesson.conceptIds.join(' · ')}
+          </p>
+        </div>
         <Link
           href={`/assessments/${lesson.assessmentSlug}`}
-          className="rounded-xl bg-action px-4 py-2 text-sm font-semibold text-canvas"
+          className="button-primary px-5 py-3 text-center text-sm"
         >
-          Open checkpoint
+          Prove mastery →
         </Link>
       </div>
-      {status && (
-        <p role="status" className="mt-3 text-xs text-muted">
-          {status}
-        </p>
-      )}
-    </div>
+    </section>
   );
 }
