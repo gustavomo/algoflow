@@ -20,7 +20,8 @@ export default async function SimulationPage({
       <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_.65fr] lg:items-end">
         <div>
           <p className="eyebrow">
-            {scenario.difficulty} · scenario v{scenario.version}
+            {scenario.category.replace('-', ' ')} · {scenario.difficulty} ·{' '}
+            {scenario.estimatedMinutes} min · scenario v{scenario.version}
           </p>
           <h1 className="mt-3 text-4xl font-semibold">{scenario.title}</h1>
           <p className="mt-3 max-w-3xl text-muted">{scenario.goal}</p>

@@ -14,6 +14,48 @@ export type CurriculumDomain = (typeof CURRICULUM_DOMAINS)[number];
 export type Tech = 'js' | 'ts' | 'go' | 'sql' | 'python' | 'general' | 'en';
 export type LearningLevel = 'foundation' | 'intermediate' | 'advanced';
 
+export const LEARNING_RESOURCE_KINDS = [
+  'documentation',
+  'course',
+  'book',
+  'paper',
+  'guide',
+  'case-study',
+] as const;
+export const LEARNING_RESOURCE_ACCESS = ['free', 'freemium', 'paid'] as const;
+
+export interface LearningResource {
+  id: string;
+  title: string;
+  provider: string;
+  url: string;
+  kind: (typeof LEARNING_RESOURCE_KINDS)[number];
+  access: (typeof LEARNING_RESOURCE_ACCESS)[number];
+  language: 'en' | 'es';
+}
+
+export function isLearningResource(value: unknown): value is LearningResource {
+  if (!value || typeof value !== 'object') return false;
+  const resource = value as Partial<LearningResource>;
+  return Boolean(
+    typeof resource.id === 'string' &&
+      resource.id.trim().length > 0 &&
+      typeof resource.title === 'string' &&
+      resource.title.trim().length > 0 &&
+      typeof resource.provider === 'string' &&
+      resource.provider.trim().length > 0 &&
+      typeof resource.url === 'string' &&
+      resource.url.trim().length > 0 &&
+      LEARNING_RESOURCE_KINDS.includes(
+        resource.kind as LearningResource['kind'],
+      ) &&
+      LEARNING_RESOURCE_ACCESS.includes(
+        resource.access as LearningResource['access'],
+      ) &&
+      (resource.language === 'en' || resource.language === 'es'),
+  );
+}
+
 export type VisualizationKind =
   | 'complexity'
   | 'bubble-sort'
@@ -89,6 +131,7 @@ export type PathModuleDefinition =
       status: 'available';
       lessonSlug: string;
       estimatedMinutes: number;
+      resources?: LearningResource[];
     }
   | {
       id: string;
@@ -96,6 +139,7 @@ export type PathModuleDefinition =
       summary: string;
       status: 'planned';
       estimatedMinutes: number;
+      resources?: LearningResource[];
     }
   | {
       id: string;
@@ -104,6 +148,7 @@ export type PathModuleDefinition =
       status: 'practice';
       href: string;
       estimatedMinutes: number;
+      resources?: LearningResource[];
     };
 
 export interface LearningPathDefinition {
@@ -296,6 +341,31 @@ export const SYSTEM_NODE_TYPES = [
   'worker',
   'search',
   'observability',
+  'legacy-system',
+  'proxy',
+  'database-replica',
+  'change-data-capture',
+  'feature-flag',
+  'backup',
+  'firewall',
+  'identity-provider',
+  'scheduler',
+  'data-warehouse',
+  'dead-letter-queue',
+] as const;
+
+export const SYSTEM_NODE_CONFIG_KEYS = [
+  'replicas',
+  'tls',
+  'durable',
+  'cacheTtlSeconds',
+  'ttlSeconds',
+  'healthChecks',
+  'replication',
+  'validated',
+  'rollbackReady',
+  'idempotent',
+  'multiRegion',
 ] as const;
 
 export type SystemNodeType = (typeof SYSTEM_NODE_TYPES)[number];
@@ -305,7 +375,17 @@ export type SystemFlowKind =
   | 'write'
   | 'async-job'
   | 'failure'
-  | 'recovery';
+  | 'recovery'
+  | 'replication'
+  | 'validation'
+  | 'cutover'
+  | 'rollback'
+  | 'decommission';
+export type SystemScenarioCategory =
+  | 'system-design'
+  | 'migration'
+  | 'database'
+  | 'reliability';
 export type SystemRubricCategory =
   | 'requirements'
   | 'bottlenecks'
@@ -315,6 +395,7 @@ export type SystemRubricCategory =
   | 'scalability'
   | 'security'
   | 'cost'
+  | 'migration-safety'
   | 'trade-offs';
 
 export interface SystemNode {
@@ -348,9 +429,27 @@ export interface SystemFlowTemplate {
 
 export type SystemRubricCheck =
   | { kind: 'node-present'; nodeType: SystemNodeType; minCount?: number }
+  | {
+      kind: 'node-count';
+      nodeType: SystemNodeType;
+      minCount: number;
+      maxCount?: number;
+    }
   | { kind: 'edge-present'; fromType: SystemNodeType; toType: SystemNodeType }
+  | {
+      kind: 'labeled-edge';
+      fromType: SystemNodeType;
+      toType: SystemNodeType;
+      label: string;
+    }
   | { kind: 'path-exists'; fromType: SystemNodeType; toType: SystemNodeType }
   | { kind: 'config-truthy'; nodeType: SystemNodeType; key: string }
+  | {
+      kind: 'config-equals';
+      nodeType: SystemNodeType;
+      key: string;
+      value: string | number | boolean;
+    }
   | { kind: 'explanation-length'; minLength: number };
 
 export interface SystemRubricRule {
@@ -369,6 +468,9 @@ export interface SystemRubricRule {
 export interface SystemDesignScenario {
   slug: string;
   version: number;
+  category: SystemScenarioCategory;
+  topics: string[];
+  estimatedMinutes: number;
   title: string;
   summary: string;
   difficulty: 'foundation' | 'intermediate' | 'advanced';
@@ -378,7 +480,16 @@ export interface SystemDesignScenario {
   constraints: string[];
   initialGraph: SystemDesignGraph;
   flows: SystemFlowTemplate[];
+  phases?: SystemScenarioPhase[];
   rubric: SystemRubricRule[];
+}
+
+export interface SystemScenarioPhase {
+  id: string;
+  title: string;
+  goal: string;
+  flowIds: string[];
+  gate: string;
 }
 
 export interface SystemFlowStep {

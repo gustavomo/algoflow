@@ -4,8 +4,9 @@ AlgoFlow is a personal software-engineering learning workspace with animated les
 
 ## Included MVP
 
-- Nine tracks, 25 learning paths, 14 complete lessons, and 14 deterministic assessments
-- Roadmaps for software engineering, JavaScript, Go, patterns, System Design, networking/CDNs, databases, PostgreSQL, MySQL, Docker, Kubernetes, AWS, mathematics, AI/ML/deep learning, agentic engineering, English, technical reading, and learning how to learn
+- Ten tracks, 27 learning paths, 17 complete lessons, and 17 deterministic assessments
+- Five-to-seven staged modules per path, with optional primary resources that never enter local RAG automatically
+- Roadmaps for software engineering, JavaScript, Go, patterns, System Design, networking/CDNs, databases, PostgreSQL, MySQL, Docker, Kubernetes, AWS, mathematics, AI/ML/deep learning, agentic engineering, English, technical reading, learning how to learn, and Staff Engineering
 - SVG and Framer Motion visualizations for Bubble Sort, pointer patterns, complexity, and reusable concept flows
 - Optional PixiJS scaffold for grid traversal scenes
 - XState playback with play, pause, seek, step, speed, keyboard controls, and reduced-motion support
@@ -13,7 +14,7 @@ AlgoFlow is a personal software-engineering learning workspace with animated les
 - Deterministic assessments that create concept-level review items
 - Server-persisted focused path with honest available/planned progress
 - Technical reading library with chapter progress, private notes, and explicit note-to-review conversion
-- System Design Lab with editable SVG topologies, animated traffic, deterministic rubrics, attempt history, and explicitly applied AI patch previews
+- Design Lab with 17 system-design, migration, database, and reliability scenarios; editable SVG topologies; phased migration flows; deterministic rubrics; attempt history; and explicitly applied AI patch previews
 - Server-owned progress, attempts, mastery, spaced-review state, and push subscriptions
 - In-app review queue plus daily Web Push reminders
 - Local JSON RAG with a swappable retriever interface
@@ -135,12 +136,12 @@ Reading notes are never added to local retrieval or AI context. Only the learner
 
 ### System Design Lab
 
-- `GET /api/simulations` lists scenarios; `?slug=...` restores one workspace.
+- `GET /api/simulations` lists 17 categorized scenarios; `?slug=...` restores one workspace.
 - `POST /api/simulations/draft` validates and saves one mutable draft per scenario.
 - `POST /api/simulations/proposal` returns a validated AI patch and preview graph without persisting it.
 - `POST /api/simulations/evaluate` stores an immutable deterministic attempt and schedules failed rubric concepts for review.
 
-The canonical score comes from versioned server rules, never from the AI provider. The offline mock and `gpt-4o-mini` provider share the same constrained patch boundary.
+Migration scenarios expose prepare, validate, cutover, rollback, and decommission phases with phase-specific flows and gates. The canonical score comes from versioned server rules, never from the AI provider. The offline mock and `gpt-4o-mini` provider share the same constrained patch boundary.
 
 ## Quality scripts
 

@@ -16,6 +16,10 @@ export default privateApi(async (req: NextApiRequest, res: NextApiResponse) => {
         typeof req.body?.question === 'string'
           ? req.body.question.slice(0, 800)
           : undefined,
+      phaseId:
+        typeof req.body?.phaseId === 'string'
+          ? req.body.phaseId.slice(0, 80)
+          : undefined,
     });
     if ('missing' in result)
       throw new ApiError(404, 'scenario_not_found', 'Scenario not found.');

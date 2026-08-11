@@ -75,6 +75,26 @@ describe('simulation use cases', () => {
     }
   });
 
+  it('bounds a design proposal to a valid selected migration phase', async () => {
+    const scenario = systemDesignScenarios.find(
+      (candidate) => candidate.slug === 'monolith-strangler-migration',
+    )!;
+    const phase = scenario.phases![0];
+    const proposal = await proposeSimulationDesign(mockDesignProposalProvider, {
+      scenarioSlug: scenario.slug,
+      graph: scenario.initialGraph,
+      phaseId: phase.id,
+    });
+    expect(proposal.value?.rationale).toMatch(/prepare/i);
+    expect(
+      await proposeSimulationDesign(mockDesignProposalProvider, {
+        scenarioSlug: scenario.slug,
+        graph: scenario.initialGraph,
+        phaseId: 'unknown-phase',
+      }),
+    ).toEqual({ error: 'The selected migration phase is not available.' });
+  });
+
   it('saves one mutable draft and immutable attempts', async () => {
     const repository = new TestSimulationRepository();
     const reviews = new TestReviewRepository();

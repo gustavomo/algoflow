@@ -131,6 +131,21 @@ export default async function PathPage({
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-subtle">{module.summary}</p>
+                {module.resources && module.resources.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {module.resources.map((resource) => (
+                      <a
+                        key={resource.id}
+                        href={resource.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border border-line px-3 py-1 text-xs text-subtle transition hover:border-line-strong hover:text-ink"
+                      >
+                        {resource.provider} · {resource.title} ↗
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
               {module.status === 'practice' ? (
                 <Link

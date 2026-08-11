@@ -1,0 +1,667 @@
+import type { SystemDesignScenario } from '@algoflow/contracts';
+import { edge, flow, migrationPhases, node, rule } from './builders';
+
+const phases = migrationPhases;
+
+export const migrationScenarios: SystemDesignScenario[] = [
+  {
+    slug: 'monolith-strangler-migration',
+    version: 1,
+    category: 'migration',
+    topics: ['strangler-fig', 'change-data-capture', 'cutover', 'rollback'],
+    estimatedMinutes: 75,
+    title: 'Strangler Migration from a Monolith',
+    summary:
+      'Move one capability behind a routing boundary while the monolith remains recoverable.',
+    difficulty: 'advanced',
+    goal: 'Introduce a service incrementally, validate its data, shift traffic, and retire the old capability safely.',
+    traffic: [
+      '3K requests/second',
+      'One shared legacy database',
+      'Zero planned downtime',
+    ],
+    requirements: [
+      'Incremental routing',
+      'Data reconciliation',
+      'Bounded cutover',
+      'Tested rollback',
+    ],
+    constraints: [
+      'The monolith stays live during migration',
+      'One capability at a time',
+      'No irreversible big-bang release',
+    ],
+    initialGraph: {
+      nodes: [
+        node('client', 'client', 'Clients', 70, 150),
+        node('legacy', 'legacy-system', 'Monolith', 310, 150),
+        node('legacy-db', 'relational-database', 'Legacy database', 550, 90, {
+          durable: true,
+        }),
+        node('service', 'service', 'Extracted service', 550, 300),
+        node('destination', 'database-replica', 'Service database', 800, 300),
+        node('observability', 'observability', 'Reconciliation', 800, 470),
+      ],
+      edges: [
+        edge('client-legacy', 'client', 'legacy'),
+        edge('legacy-db', 'legacy', 'legacy-db'),
+        edge('service-destination', 'service', 'destination'),
+      ],
+    },
+    flows: [
+      flow(
+        'prepare',
+        'Prepare routing boundary',
+        'write',
+        ['legacy-system', 'proxy', 'service'],
+        [
+          'The monolith remains authoritative.',
+          'A proxy creates a reversible routing seam.',
+          'The extracted service receives shadow or internal traffic.',
+        ],
+      ),
+      flow(
+        'validate',
+        'Validate copied state',
+        'validation',
+        [
+          'legacy-system',
+          'change-data-capture',
+          'database-replica',
+          'observability',
+        ],
+        [
+          'Legacy changes remain authoritative.',
+          'Change data capture mirrors committed updates.',
+          'The service database receives changes.',
+          'Reconciliation compares both representations.',
+        ],
+      ),
+      flow(
+        'cutover',
+        'Cut over capability traffic',
+        'cutover',
+        ['client', 'proxy', 'service'],
+        [
+          'Clients keep one stable entry point.',
+          'The proxy shifts a bounded traffic slice.',
+          'The extracted service becomes authoritative for the capability.',
+        ],
+      ),
+      flow(
+        'rollback',
+        'Roll back to monolith',
+        'rollback',
+        ['client', 'proxy', 'legacy-system'],
+        [
+          'Clients keep the stable route.',
+          'The proxy restores the previous target.',
+          'The monolith resumes capability traffic.',
+        ],
+      ),
+      flow(
+        'decommission',
+        'Decommission legacy capability',
+        'decommission',
+        ['proxy', 'service', 'database-replica'],
+        [
+          'The proxy retains the final service route.',
+          'The service owns the capability.',
+          'Its database is the durable authority.',
+        ],
+      ),
+    ],
+    phases: phases(),
+    rubric: [
+      rule({
+        id: 'strangler-proxy',
+        conceptId: 'reversible-routing-seam',
+        title: 'Reversible routing boundary',
+        category: 'migration-safety',
+        check: { kind: 'node-present', nodeType: 'proxy' },
+        success:
+          'A proxy provides a controllable seam between old and new behavior.',
+        failure: 'Add a proxy in front of the capability routes.',
+      }),
+      rule({
+        id: 'strangler-cdc',
+        conceptId: 'incremental-data-copy',
+        title: 'Incremental data copy',
+        category: 'durability',
+        check: {
+          kind: 'path-exists',
+          fromType: 'legacy-system',
+          toType: 'database-replica',
+        },
+        success: 'Legacy changes have a path to the service database.',
+        failure:
+          'Connect the monolith through change data capture to the destination.',
+      }),
+      rule({
+        id: 'strangler-flag',
+        conceptId: 'bounded-cutover-control',
+        title: 'Cutover control',
+        category: 'migration-safety',
+        check: { kind: 'node-present', nodeType: 'feature-flag' },
+        success: 'A feature flag can bound and halt the cutover.',
+        failure: 'Add a feature flag as an explicit cutover control.',
+      }),
+      rule({
+        id: 'strangler-rollback',
+        conceptId: 'tested-rollback-path',
+        title: 'Rollback-ready proxy',
+        category: 'migration-safety',
+        check: {
+          kind: 'config-equals',
+          nodeType: 'proxy',
+          key: 'rollbackReady',
+          value: true,
+        },
+        success: 'The routing boundary declares a tested rollback path.',
+        failure: 'Enable rollback ready on the proxy.',
+      }),
+      rule({
+        id: 'strangler-explanation',
+        conceptId: 'strangler-sequencing',
+        title: 'Migration sequencing explained',
+        category: 'trade-offs',
+        check: { kind: 'explanation-length', minLength: 80 },
+        success:
+          'The design explains authority, validation, cutover, and removal.',
+        failure:
+          'Explain data authority, validation thresholds, rollback, and decommission timing.',
+      }),
+    ],
+  },
+  {
+    slug: 'sync-to-event-driven-migration',
+    version: 1,
+    category: 'migration',
+    topics: ['events', 'outbox', 'idempotency', 'dead-letter-queue'],
+    estimatedMinutes: 70,
+    title: 'Synchronous to Event-Driven Migration',
+    summary:
+      'Introduce durable events without losing accepted work or duplicating side effects.',
+    difficulty: 'advanced',
+    goal: 'Move a slow downstream action out of a synchronous request while preserving correctness and rollback.',
+    traffic: [
+      '5K commands/second',
+      'Downstream latency up to 8 seconds',
+      'At-least-once delivery',
+    ],
+    requirements: [
+      'Durable event publication',
+      'Idempotent consumption',
+      'Failure isolation',
+      'Observable backlog',
+    ],
+    constraints: [
+      'Existing API contract stays stable',
+      'Duplicate delivery is possible',
+      'Ordering is per aggregate',
+    ],
+    initialGraph: {
+      nodes: [
+        node('client', 'client', 'Clients', 70, 170),
+        node('legacy', 'legacy-system', 'Synchronous service', 300, 170),
+        node('stream', 'stream', 'Event stream', 540, 170),
+        node('worker', 'worker', 'Event consumer', 760, 170),
+        node('database', 'relational-database', 'Result store', 760, 370),
+        node('observability', 'observability', 'Lag and failures', 520, 450),
+      ],
+      edges: [
+        edge('client-legacy', 'client', 'legacy'),
+        edge('legacy-stream', 'legacy', 'stream'),
+        edge('worker-database', 'worker', 'database'),
+      ],
+    },
+    flows: [
+      flow(
+        'prepare',
+        'Publish durable events',
+        'write',
+        ['legacy-system', 'stream'],
+        [
+          'The existing service accepts the command.',
+          'A durable event records downstream intent.',
+        ],
+      ),
+      flow(
+        'validate',
+        'Shadow consumer validation',
+        'validation',
+        ['stream', 'worker', 'observability'],
+        [
+          'The stream delivers a copy.',
+          'A shadow consumer computes the result idempotently.',
+          'Telemetry compares lag and output.',
+        ],
+      ),
+      flow(
+        'cutover',
+        'Asynchronous processing',
+        'cutover',
+        ['client', 'legacy-system', 'stream', 'worker'],
+        [
+          'The API contract remains stable.',
+          'The service commits accepted intent.',
+          'The event stream becomes the delivery boundary.',
+          'The consumer performs the downstream action.',
+        ],
+      ),
+      flow(
+        'rollback',
+        'Pause new consumption',
+        'rollback',
+        ['feature-flag', 'legacy-system'],
+        [
+          'A cutover flag disables the new consumer path.',
+          'The legacy synchronous behavior remains available for bounded rollback.',
+        ],
+      ),
+      flow(
+        'decommission',
+        'Remove synchronous call',
+        'decommission',
+        ['legacy-system', 'stream', 'worker'],
+        [
+          'The service only publishes durable intent.',
+          'The stream owns delivery buffering.',
+          'The idempotent consumer owns the downstream action.',
+        ],
+      ),
+    ],
+    phases: phases(),
+    rubric: [
+      rule({
+        id: 'event-stream-durable',
+        conceptId: 'durable-event-boundary',
+        title: 'Durable event boundary',
+        category: 'durability',
+        check: {
+          kind: 'config-equals',
+          nodeType: 'stream',
+          key: 'durable',
+          value: true,
+        },
+        success: 'The stream retains accepted event intent.',
+        failure: 'Enable durable on the event stream.',
+      }),
+      rule({
+        id: 'event-idempotent',
+        conceptId: 'idempotent-consumer',
+        title: 'Idempotent consumer',
+        category: 'requirements',
+        check: {
+          kind: 'config-equals',
+          nodeType: 'worker',
+          key: 'idempotent',
+          value: true,
+        },
+        success: 'The consumer can safely process a delivered event again.',
+        failure: 'Enable idempotent on the worker.',
+      }),
+      rule({
+        id: 'event-dlq',
+        conceptId: 'poison-event-isolation',
+        title: 'Dead-letter isolation',
+        category: 'availability',
+        check: { kind: 'node-present', nodeType: 'dead-letter-queue' },
+        success: 'Poison events remain inspectable outside the hot path.',
+        failure: 'Add a dead-letter queue.',
+      }),
+      rule({
+        id: 'event-result-path',
+        conceptId: 'eventual-result-path',
+        title: 'Complete result path',
+        category: 'requirements',
+        check: {
+          kind: 'path-exists',
+          fromType: 'stream',
+          toType: 'relational-database',
+        },
+        success: 'Events reach durable result storage through a consumer.',
+        failure: 'Connect the stream to a worker and durable store.',
+      }),
+      rule({
+        id: 'event-migration-explanation',
+        conceptId: 'event-cutover-tradeoff',
+        title: 'Event cutover explained',
+        category: 'trade-offs',
+        check: { kind: 'explanation-length', minLength: 80 },
+        success:
+          'The design explains publication atomicity, duplicates, ordering, and rollback.',
+        failure:
+          'Explain atomic publication, idempotency, ordering, backlog, and rollback.',
+      }),
+    ],
+  },
+  {
+    slug: 'cloud-workload-migration',
+    version: 1,
+    category: 'migration',
+    topics: ['cloud-migration', 'data-replication', 'dns-cutover', 'backup'],
+    estimatedMinutes: 75,
+    title: 'Cloud Workload Migration',
+    summary:
+      'Rehost an application and its data through observable, reversible traffic shifts.',
+    difficulty: 'advanced',
+    goal: 'Prepare cloud capacity, replicate data, shift traffic gradually, and preserve recovery options.',
+    traffic: ['2K requests/second', '4 TB relational data', 'RTO 30 minutes'],
+    requirements: [
+      'Continuous data replication',
+      'Canary traffic shift',
+      'Backup verification',
+      'Rollback route',
+    ],
+    constraints: [
+      'Source remains live',
+      'DNS caches exist',
+      'Cutover occurs inside one maintenance window',
+    ],
+    initialGraph: {
+      nodes: [
+        node('client', 'client', 'Users', 70, 160),
+        node('legacy', 'legacy-system', 'Data-center app', 300, 160),
+        node('legacy-db', 'relational-database', 'Source database', 300, 360, {
+          durable: true,
+        }),
+        node('cloud-service', 'service', 'Cloud service', 650, 160),
+        node('cloud-db', 'database-replica', 'Cloud database', 650, 360),
+        node('observability', 'observability', 'Migration telemetry', 880, 260),
+      ],
+      edges: [
+        edge('client-legacy', 'client', 'legacy'),
+        edge('legacy-database', 'legacy', 'legacy-db'),
+        edge('cloud-service-db', 'cloud-service', 'cloud-db'),
+      ],
+    },
+    flows: [
+      flow(
+        'prepare',
+        'Prepare cloud destination',
+        'write',
+        ['legacy-system', 'proxy', 'service'],
+        [
+          'The source remains authoritative.',
+          'A traffic boundary can split requests.',
+          'The cloud service receives synthetic health traffic.',
+        ],
+      ),
+      flow(
+        'validate',
+        'Validate replicated data',
+        'validation',
+        [
+          'relational-database',
+          'change-data-capture',
+          'database-replica',
+          'observability',
+        ],
+        [
+          'The source database emits committed changes.',
+          'Replication transfers the change stream.',
+          'The cloud database applies changes.',
+          'Telemetry reconciles lag and row-level samples.',
+        ],
+      ),
+      flow(
+        'cutover',
+        'Canary cloud traffic',
+        'cutover',
+        ['client', 'proxy', 'service'],
+        [
+          'Users keep one stable endpoint.',
+          'The proxy sends a bounded canary share.',
+          'The cloud service handles production requests.',
+        ],
+      ),
+      flow(
+        'rollback',
+        'Return traffic on premise',
+        'rollback',
+        ['client', 'proxy', 'legacy-system'],
+        [
+          'Users keep the same endpoint.',
+          'The traffic boundary restores the source route.',
+          'The data-center workload resumes full traffic.',
+        ],
+      ),
+      flow(
+        'decommission',
+        'Retire source workload',
+        'decommission',
+        ['proxy', 'service', 'database-replica'],
+        [
+          'The final route targets cloud capacity.',
+          'The cloud service owns requests.',
+          'The cloud database is promoted to authority.',
+        ],
+      ),
+    ],
+    phases: phases(),
+    rubric: [
+      rule({
+        id: 'cloud-replication',
+        conceptId: 'continuous-cloud-replication',
+        title: 'Continuous replication path',
+        category: 'durability',
+        check: {
+          kind: 'path-exists',
+          fromType: 'relational-database',
+          toType: 'database-replica',
+        },
+        success: 'Source changes reach the cloud database continuously.',
+        failure:
+          'Connect the source database through change data capture to the cloud database.',
+      }),
+      rule({
+        id: 'cloud-backup',
+        conceptId: 'verified-migration-backup',
+        title: 'Backup boundary',
+        category: 'migration-safety',
+        check: { kind: 'node-present', nodeType: 'backup' },
+        success: 'A backup boundary protects the migration window.',
+        failure: 'Add a backup and include restore verification in the design.',
+      }),
+      rule({
+        id: 'cloud-proxy',
+        conceptId: 'canary-traffic-boundary',
+        title: 'Canary traffic boundary',
+        category: 'migration-safety',
+        check: { kind: 'node-present', nodeType: 'proxy' },
+        success: 'A proxy can shift a bounded traffic share.',
+        failure: 'Add a proxy between users and both workloads.',
+      }),
+      rule({
+        id: 'cloud-rollback',
+        conceptId: 'cloud-rollback-readiness',
+        title: 'Rollback readiness',
+        category: 'migration-safety',
+        check: {
+          kind: 'config-equals',
+          nodeType: 'proxy',
+          key: 'rollbackReady',
+          value: true,
+        },
+        success: 'The traffic boundary declares a tested rollback.',
+        failure: 'Enable rollback ready on the proxy.',
+      }),
+      rule({
+        id: 'cloud-explanation',
+        conceptId: 'cloud-cutover-plan',
+        title: 'Cloud cutover explained',
+        category: 'trade-offs',
+        check: { kind: 'explanation-length', minLength: 80 },
+        success:
+          'The design explains replication lag, DNS or traffic shift, recovery, and cost.',
+        failure:
+          'Explain lag thresholds, canary expansion, rollback, RTO, and temporary dual-running cost.',
+      }),
+    ],
+  },
+  {
+    slug: 'multi-region-migration',
+    version: 1,
+    category: 'migration',
+    topics: ['multi-region', 'replication', 'failover', 'consistency'],
+    estimatedMinutes: 75,
+    title: 'Single-Region to Multi-Region',
+    summary:
+      'Add a second region without confusing failover capacity with data correctness.',
+    difficulty: 'advanced',
+    goal: 'Replicate state, validate regional capacity, shift traffic, and exercise regional rollback.',
+    traffic: ['8K requests/second', 'Two geographic markets', 'RTO 15 minutes'],
+    requirements: [
+      'Regional traffic control',
+      'Replicated data',
+      'Failover telemetry',
+      'Recovery exercise',
+    ],
+    constraints: [
+      'Writes remain single-primary initially',
+      'Cross-region latency matters',
+      'Avoid split-brain',
+    ],
+    initialGraph: {
+      nodes: [
+        node('client', 'client', 'Global users', 70, 150),
+        node('dns', 'dns', 'Global DNS', 260, 150),
+        node('primary', 'legacy-system', 'Primary region', 500, 100),
+        node('service', 'service', 'Secondary service', 720, 250),
+        node('database', 'relational-database', 'Primary database', 500, 380, {
+          durable: true,
+        }),
+        node('replica', 'database-replica', 'Regional replica', 760, 400),
+        node('observability', 'observability', 'Regional telemetry', 920, 250),
+      ],
+      edges: [
+        edge('client-dns', 'client', 'dns'),
+        edge('dns-primary', 'dns', 'primary'),
+        edge('primary-database', 'primary', 'database'),
+        edge('service-replica', 'service', 'replica'),
+      ],
+    },
+    flows: [
+      flow(
+        'prepare',
+        'Prepare secondary region',
+        'replication',
+        ['relational-database', 'database-replica'],
+        [
+          'The primary database remains authoritative.',
+          'A regional replica receives continuous changes.',
+        ],
+      ),
+      flow(
+        'validate',
+        'Validate regional health',
+        'validation',
+        ['database-replica', 'observability'],
+        [
+          'The replica exposes lag and health.',
+          'Regional telemetry compares service and recovery signals.',
+        ],
+      ),
+      flow(
+        'cutover',
+        'Shift regional traffic',
+        'cutover',
+        ['client', 'dns', 'load-balancer', 'service'],
+        [
+          'Users resolve a regional endpoint.',
+          'DNS directs a bounded market.',
+          'A regional load balancer distributes traffic.',
+          'Secondary service capacity handles requests.',
+        ],
+      ),
+      flow(
+        'rollback',
+        'Restore primary region',
+        'rollback',
+        ['client', 'dns', 'legacy-system'],
+        [
+          'Users resolve the stable name.',
+          'DNS returns traffic to the original region.',
+          'The primary region resumes service authority.',
+        ],
+      ),
+      flow(
+        'decommission',
+        'Finalize multi-region operation',
+        'decommission',
+        ['dns', 'load-balancer', 'service'],
+        [
+          'DNS keeps health-aware regional routing.',
+          'The load balancer protects regional instances.',
+          'The secondary service remains production-ready.',
+        ],
+      ),
+    ],
+    phases: phases(),
+    rubric: [
+      rule({
+        id: 'region-lb',
+        conceptId: 'regional-load-boundary',
+        title: 'Regional load boundary',
+        category: 'availability',
+        check: { kind: 'node-present', nodeType: 'load-balancer' },
+        success: 'Secondary-region instances sit behind a load boundary.',
+        failure: 'Add a load balancer before the secondary service.',
+      }),
+      rule({
+        id: 'region-replication',
+        conceptId: 'regional-data-replication',
+        title: 'Replication enabled',
+        category: 'durability',
+        check: {
+          kind: 'config-equals',
+          nodeType: 'database-replica',
+          key: 'replication',
+          value: true,
+        },
+        success: 'The regional database declares replication.',
+        failure: 'Enable replication on the database replica.',
+      }),
+      rule({
+        id: 'region-multi',
+        conceptId: 'multi-region-capacity',
+        title: 'Multi-region service',
+        category: 'availability',
+        check: {
+          kind: 'config-equals',
+          nodeType: 'service',
+          key: 'multiRegion',
+          value: true,
+        },
+        success:
+          'The service is explicitly configured for multi-region operation.',
+        failure: 'Enable multi region on the secondary service.',
+      }),
+      rule({
+        id: 'region-rollback',
+        conceptId: 'regional-rollback-route',
+        title: 'Primary rollback path',
+        category: 'migration-safety',
+        check: {
+          kind: 'path-exists',
+          fromType: 'client',
+          toType: 'legacy-system',
+        },
+        success: 'Users retain a route back to the primary region.',
+        failure: 'Preserve the client-to-primary rollback path.',
+      }),
+      rule({
+        id: 'region-explanation',
+        conceptId: 'regional-consistency-tradeoff',
+        title: 'Regional trade-off explained',
+        category: 'trade-offs',
+        check: { kind: 'explanation-length', minLength: 80 },
+        success:
+          'The design explains lag, write authority, failover, and split-brain prevention.',
+        failure:
+          'Explain replication lag, write authority, failover signals, and split-brain controls.',
+      }),
+    ],
+  },
+];

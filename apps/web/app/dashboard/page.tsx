@@ -26,7 +26,10 @@ export default async function DashboardPage() {
     learningPaths.find(
       (path) => path.slug === 'software-engineering-fundamentals',
     ),
-    learningPaths.find((path) => path.slug === 'mathematics-for-ai'),
+    learningPaths.find(
+      (path) => path.slug === 'artificial-intelligence-foundations',
+    ),
+    learningPaths.find((path) => path.slug === 'staff-engineer'),
   ]
     .filter((path, index, items) => {
       if (!path) return false;
@@ -34,7 +37,7 @@ export default async function DashboardPage() {
         items.findIndex((candidate) => candidate?.slug === path.slug) === index
       );
     })
-    .slice(0, 3);
+    .slice(0, 4);
 
   return (
     <AppShell>
@@ -93,7 +96,7 @@ export default async function DashboardPage() {
             View all
           </Link>
         </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {featuredPaths.map((path) => {
             if (!path) return null;
             const completeCount = path.lessonSlugs.filter((slug) =>

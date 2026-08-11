@@ -1,14 +1,40 @@
 import Link from 'next/link';
+import type { SystemScenarioCategory } from '@algoflow/contracts';
 import AppShell from '../../components/layout/AppShell';
 import { getSimulations } from '../../lib/server/learningData';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SimulationsPage() {
+const categories: Array<{
+  value: 'all' | SystemScenarioCategory;
+  label: string;
+}> = [
+  { value: 'all', label: 'All' },
+  { value: 'system-design', label: 'System design' },
+  { value: 'migration', label: 'Migration' },
+  { value: 'database', label: 'Database' },
+  { value: 'reliability', label: 'Reliability' },
+];
+
+export default async function SimulationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}) {
   const items = await getSimulations();
+  const requestedCategory = (await searchParams).category;
+  const selectedCategory = categories.some(
+    (category) => category.value === requestedCategory,
+  )
+    ? (requestedCategory as 'all' | SystemScenarioCategory)
+    : 'all';
+  const visibleItems =
+    selectedCategory === 'all'
+      ? items
+      : items.filter(({ scenario }) => scenario.category === selectedCategory);
   return (
     <AppShell>
-      <p className="eyebrow text-ink">System Design Lab</p>
+      <p className="eyebrow text-ink">Design Lab</p>
       <h1 className="mt-3 max-w-3xl text-4xl font-semibold">
         Build the architecture. Watch the flow. Defend the trade-offs.
       </h1>
@@ -16,15 +42,43 @@ export default async function SimulationsPage() {
         Each scenario gives you an editable topology, representative traffic
         animation, deterministic rubric, and an optional AI patch you control.
       </p>
+      <nav
+        aria-label="Scenario categories"
+        className="mt-8 flex flex-wrap gap-2"
+      >
+        {categories.map((category) => {
+          const active = category.value === selectedCategory;
+          return (
+            <Link
+              key={category.value}
+              href={
+                category.value === 'all'
+                  ? '/simulations'
+                  : `/simulations?category=${category.value}`
+              }
+              aria-current={active ? 'page' : undefined}
+              className={`rounded-full border px-4 py-2 text-sm transition ${
+                active
+                  ? 'border-ink bg-ink text-canvas'
+                  : 'border-line text-subtle hover:border-line-strong hover:text-ink'
+              }`}
+            >
+              {category.label}
+            </Link>
+          );
+        })}
+      </nav>
       <div className="mt-10 grid gap-5 lg:grid-cols-3">
-        {items.map(({ scenario, draft, latestAttempt }) => (
+        {visibleItems.map(({ scenario, draft, latestAttempt }) => (
           <Link
             key={scenario.slug}
             href={`/simulations/${scenario.slug}`}
             className="group rounded-3xl border border-line bg-surface p-7 transition hover:-translate-y-0.5 hover:border-line-strong"
           >
             <div className="flex items-center justify-between gap-3">
-              <span className="eyebrow">{scenario.difficulty}</span>
+              <span className="eyebrow">
+                {scenario.category.replace('-', ' ')} · {scenario.difficulty}
+              </span>
               {latestAttempt && (
                 <span
                   className={`text-sm ${latestAttempt.evaluation.passed ? 'text-success' : 'text-warning'}`}
@@ -38,7 +92,10 @@ export default async function SimulationsPage() {
               {scenario.summary}
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
-              {scenario.traffic.slice(0, 2).map((item) => (
+              <span className="rounded-full border border-line px-2.5 py-1 text-[10px] text-muted">
+                {scenario.estimatedMinutes} min
+              </span>
+              {scenario.topics.slice(0, 2).map((item) => (
                 <span
                   key={item}
                   className="rounded-full border border-line px-2.5 py-1 text-[10px] text-muted"

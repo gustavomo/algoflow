@@ -1,4 +1,5 @@
 import {
+  SYSTEM_NODE_CONFIG_KEYS,
   SYSTEM_NODE_TYPES,
   type DesignProposal,
   type GraphPatchOperation,
@@ -60,6 +61,35 @@ export function validateSystemGraph(graph: unknown) {
       errors.push(`Node ${id || 'missing'} is outside the canvas.`);
     if (!isRecord(node.config) || Object.keys(node.config).length > 12)
       errors.push(`Invalid configuration for node ${id || 'missing'}`);
+    else
+      for (const [key, value] of Object.entries(node.config)) {
+        if (!SYSTEM_NODE_CONFIG_KEYS.includes(key as never))
+          errors.push(
+            `Unsupported configuration key ${key} on node ${id || 'missing'}.`,
+          );
+        else if (key === 'replicas') {
+          if (
+            !Number.isInteger(value) ||
+            Number(value) < 1 ||
+            Number(value) > 50
+          )
+            errors.push(
+              `Replicas for node ${id || 'missing'} must be an integer from 1 to 50.`,
+            );
+        } else if (key === 'cacheTtlSeconds' || key === 'ttlSeconds') {
+          if (
+            !Number.isInteger(value) ||
+            Number(value) < 1 ||
+            Number(value) > 604800
+          )
+            errors.push(
+              `Configuration ${key} on node ${id || 'missing'} must be an integer from 1 to 604800.`,
+            );
+        } else if (typeof value !== 'boolean')
+          errors.push(
+            `Configuration ${key} on node ${id || 'missing'} must be boolean.`,
+          );
+      }
   }
   const edgeIds = new Set<string>();
   const pairs = new Set<string>();
@@ -171,6 +201,21 @@ function hasEdge(
       nodes.get(edge.to)?.type === toType,
   );
 }
+function hasLabeledEdge(
+  graph: SystemDesignGraph,
+  fromType: SystemNodeType,
+  toType: SystemNodeType,
+  label: string,
+) {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  const expected = label.trim().toLowerCase();
+  return graph.edges.some(
+    (edge) =>
+      nodes.get(edge.from)?.type === fromType &&
+      nodes.get(edge.to)?.type === toType &&
+      edge.label?.trim().toLowerCase() === expected,
+  );
+}
 function pathExists(
   graph: SystemDesignGraph,
   fromType: SystemNodeType,
@@ -207,13 +252,24 @@ export function evaluateSystemDesign(
     if (check.kind === 'node-present')
       passed =
         nodesOfType(graph, check.nodeType).length >= (check.minCount ?? 1);
-    else if (check.kind === 'edge-present')
+    else if (check.kind === 'node-count') {
+      const count = nodesOfType(graph, check.nodeType).length;
+      passed =
+        count >= check.minCount &&
+        (check.maxCount == null || count <= check.maxCount);
+    } else if (check.kind === 'edge-present')
       passed = hasEdge(graph, check.fromType, check.toType);
+    else if (check.kind === 'labeled-edge')
+      passed = hasLabeledEdge(graph, check.fromType, check.toType, check.label);
     else if (check.kind === 'path-exists')
       passed = pathExists(graph, check.fromType, check.toType);
     else if (check.kind === 'config-truthy')
       passed = nodesOfType(graph, check.nodeType).some((node) =>
         Boolean(node.config[check.key]),
+      );
+    else if (check.kind === 'config-equals')
+      passed = nodesOfType(graph, check.nodeType).some(
+        (node) => node.config[check.key] === check.value,
       );
     else passed = tradeOffs.trim().length >= check.minLength;
     return {
