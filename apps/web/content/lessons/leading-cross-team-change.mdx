@@ -1,0 +1,18 @@
+Cross-team change succeeds when technical sequencing and organizational ownership are designed together. Migrations fail at the gaps between components, teams, and decision rights.
+
+<Hint>
+  Reduce the size of every irreversible decision. A phase is useful when it ends
+  with evidence and a safe choice to continue or roll back.
+</Hint>
+
+## Establish shared ownership
+
+Write the problem, desired outcome, affected teams, source of truth, and decision owners. Make dependencies and incentives visible. Alignment does not require unanimous preference; it requires a clear decision process and understood commitments.
+
+## Design the migration phases
+
+Prepare the destination, introduce compatibility, copy or dual-write data, validate behavior, shift a small amount of traffic, expand the cutover, and remove the legacy path only after stability is demonstrated. Each phase needs an entry condition, observable gate, and rollback action.
+
+## Lead through evidence
+
+Use dashboards, reconciliation checks, shadow traffic, error budgets, and user outcomes to make progress inspectable. Escalate changed assumptions early. After cutover, capture operational learning and remove temporary mechanisms so the migration does not become permanent complexity.

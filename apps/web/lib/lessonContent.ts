@@ -11,6 +11,9 @@ import PromptToAgentLoopLesson from '../content/lessons/prompt-to-agent-loop.mdx
 import RelationalDataModelingLesson from '../content/lessons/relational-data-modeling.mdx';
 import RequestToCdnLesson from '../content/lessons/request-to-cdn.mdx';
 import SoftwareSystemsMapLesson from '../content/lessons/software-systems-map.mdx';
+import StaffRoleAndImpactLesson from '../content/lessons/staff-role-and-impact.mdx';
+import TechnicalStrategyLesson from '../content/lessons/technical-strategy.mdx';
+import LeadingCrossTeamChangeLesson from '../content/lessons/leading-cross-team-change.mdx';
 import VectorsForMachineLearningLesson from '../content/lessons/vectors-for-machine-learning.mdx';
 
 export const lessonContentBySlug: Record<string, typeof BubbleSortLesson> = {
@@ -27,5 +30,8 @@ export const lessonContentBySlug: Record<string, typeof BubbleSortLesson> = {
   'relational-data-modeling': RelationalDataModelingLesson,
   'request-to-cdn': RequestToCdnLesson,
   'software-systems-map': SoftwareSystemsMapLesson,
+  'staff-role-and-impact': StaffRoleAndImpactLesson,
+  'technical-strategy': TechnicalStrategyLesson,
+  'leading-cross-team-change': LeadingCrossTeamChangeLesson,
   'vectors-for-machine-learning': VectorsForMachineLearningLesson,
 };

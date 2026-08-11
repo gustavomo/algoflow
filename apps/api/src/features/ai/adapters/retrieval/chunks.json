@@ -142,5 +142,69 @@
     "topic": "active-reading",
     "step": 1,
     "content": "Active technical reading converts a chapter into questions, recall prompts, and small applications instead of copied highlights."
+  },
+  {
+    "id": "engineering/staff-scope#1",
+    "tech": "general",
+    "domain": "engineering",
+    "topic": "staff-engineering",
+    "step": 1,
+    "content": "Staff engineering is measured through durable technical and organizational impact on important outcomes, not code volume or formal authority."
+  },
+  {
+    "id": "engineering/staff-leverage#2",
+    "tech": "general",
+    "domain": "engineering",
+    "topic": "staff-engineering",
+    "step": 2,
+    "content": "Staff leverage comes from better problem selection, architecture, delivery mechanisms, operating models, and engineers who can make stronger decisions independently."
+  },
+  {
+    "id": "engineering/technical-strategy#1",
+    "tech": "general",
+    "domain": "engineering",
+    "topic": "technical-strategy",
+    "step": 1,
+    "content": "A technical strategy combines a focused diagnosis, a guiding policy, coherent reinforcing actions, and signals that reveal when the direction should change."
+  },
+  {
+    "id": "engineering/cross-team-migration#1",
+    "tech": "general",
+    "domain": "engineering",
+    "topic": "migration-leadership",
+    "step": 1,
+    "content": "A safe cross-team migration gives every phase an owner, entry condition, observable validation gate, and tested rollback action."
+  },
+  {
+    "id": "ai-foundations/paradigms#1",
+    "tech": "general",
+    "domain": "ai-foundations",
+    "topic": "artificial-intelligence",
+    "step": 1,
+    "content": "Artificial intelligence includes symbolic reasoning, search and planning, statistical learning, and hybrid systems; machine learning is one major approach within the broader field."
+  },
+  {
+    "id": "ai-foundations/agents#2",
+    "tech": "general",
+    "domain": "ai-foundations",
+    "topic": "artificial-intelligence",
+    "step": 2,
+    "content": "An intelligent-agent model describes goals, environment, observations, actions, internal state, uncertainty, and the criteria used to evaluate behavior."
+  },
+  {
+    "id": "ai-foundations/search#3",
+    "tech": "general",
+    "domain": "ai-foundations",
+    "topic": "artificial-intelligence",
+    "step": 3,
+    "content": "Search explores a state space while heuristics, constraints, or planning representations reduce the work needed to find a useful sequence of actions."
+  },
+  {
+    "id": "ai-foundations/responsible-ai#4",
+    "tech": "general",
+    "domain": "ai-foundations",
+    "topic": "responsible-ai",
+    "step": 4,
+    "content": "Responsible AI treats uncertainty, fairness, privacy, security, misuse, and human oversight as design and evaluation requirements rather than final review items."
   }
 ]

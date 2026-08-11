@@ -1,4 +1,8 @@
 import OpenAI from 'openai';
+import {
+  SYSTEM_NODE_CONFIG_KEYS,
+  SYSTEM_NODE_TYPES,
+} from '@algoflow/contracts';
 import type { GraphPatchOperation, SystemNodeType } from '@algoflow/contracts';
 import type { DesignProposalProvider } from '../ports/designProposalProvider';
 
@@ -26,7 +30,7 @@ function hasConnection(
 
 export const mockDesignProposalProvider: DesignProposalProvider = {
   provider: 'mock',
-  async propose({ scenario, graph }) {
+  async propose({ scenario, graph, phase }) {
     let operations: GraphPatchOperation[] = [];
     let rationale =
       'Improve the highest-priority missing deterministic rubric boundary.';
@@ -146,7 +150,7 @@ export const mockDesignProposalProvider: DesignProposalProvider = {
       });
       rationale =
         'Add read caching and horizontal service capacity while keeping the database authoritative.';
-    } else {
+    } else if (scenario.slug === 'async-file-processing') {
       const queueId = nodeId(graph, 'queue') ?? 'suggested-queue';
       const workerId = nodeId(graph, 'worker') ?? 'suggested-worker';
       if (missing(graph, 'queue'))
@@ -205,6 +209,56 @@ export const mockDesignProposalProvider: DesignProposalProvider = {
         });
       rationale =
         'Move long processing behind a durable queue and idempotent worker while retaining object storage.';
+    } else {
+      const phaseFlowIds = phase ? new Set(phase.flowIds) : undefined;
+      const candidateFlows = phaseFlowIds
+        ? scenario.flows.filter((flow) => phaseFlowIds.has(flow.id))
+        : scenario.flows;
+      const firstFlow =
+        candidateFlows.find((candidate) =>
+          candidate.nodeTypes.some((type, index) => {
+            const id = nodeId(graph, type);
+            if (!id) return true;
+            const previousType = candidate.nodeTypes[index - 1];
+            if (!previousType) return false;
+            const previousId = nodeId(graph, previousType);
+            return !previousId || !hasConnection(graph, previousId, id);
+          }),
+        ) ?? candidateFlows[0];
+      const ids = new Map<SystemNodeType, string>();
+      for (const [index, type] of firstFlow.nodeTypes.entries()) {
+        const existingId = nodeId(graph, type);
+        const id = existingId ?? `suggested-${scenario.slug}-${type}`.slice(0, 80);
+        ids.set(type, id);
+        if (!existingId)
+          operations.push({
+            op: 'add-node',
+            node: {
+              id,
+              type,
+              label: type
+                .replaceAll('-', ' ')
+                .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+              x: 120 + index * Math.floor(760 / firstFlow.nodeTypes.length),
+              y: 320,
+              config: {},
+            },
+          });
+      }
+      for (let index = 1; index < firstFlow.nodeTypes.length; index += 1) {
+        const from = ids.get(firstFlow.nodeTypes[index - 1])!;
+        const to = ids.get(firstFlow.nodeTypes[index])!;
+        if (!hasConnection(graph, from, to))
+          operations.push({
+            op: 'add-edge',
+            edge: {
+              id: `suggested-${index}-${from}-${to}`.slice(0, 80),
+              from,
+              to,
+            },
+          });
+      }
+      rationale = `Complete the ${firstFlow.title.toLowerCase()} path${phase ? ` for ${phase.title.toLowerCase()}` : ''} with the smallest valid topology patch.`;
     }
     return { rationale, operations };
   },
@@ -216,7 +270,7 @@ const openai = process.env.OPENAI_API_KEY
 
 export const openaiDesignProposalProvider: DesignProposalProvider = {
   provider: 'openai',
-  async propose({ scenario, graph, question }) {
+  async propose({ scenario, graph, question, phase }) {
     if (!openai) throw new Error('OpenAI is not configured.');
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -233,23 +287,16 @@ export const openaiDesignProposalProvider: DesignProposalProvider = {
           content: JSON.stringify({
             goal: scenario.goal,
             requirements: scenario.requirements,
-            allowedNodeTypes: [
-              'client',
-              'dns',
-              'cdn',
-              'load-balancer',
-              'api-gateway',
-              'service',
-              'cache',
-              'relational-database',
-              'document-database',
-              'object-storage',
-              'queue',
-              'stream',
-              'worker',
-              'search',
-              'observability',
-            ],
+            selectedPhase: phase
+              ? {
+                  id: phase.id,
+                  goal: phase.goal,
+                  gate: phase.gate,
+                  allowedFlowIds: phase.flowIds,
+                }
+              : undefined,
+            allowedNodeTypes: SYSTEM_NODE_TYPES,
+            allowedConfigKeys: SYSTEM_NODE_CONFIG_KEYS,
             graph,
             question:
               question ?? 'Improve the highest-priority missing requirement.',

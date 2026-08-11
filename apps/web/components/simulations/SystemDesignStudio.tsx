@@ -19,6 +19,17 @@ import SystemDesignCanvas from './SystemDesignCanvas';
 const nodeLabel = (type: SystemNodeType) =>
   type.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+const booleanConfigKeys = [
+  ['tls', 'TLS'],
+  ['durable', 'Durable'],
+  ['healthChecks', 'Health checks'],
+  ['replication', 'Replication'],
+  ['validated', 'Validated'],
+  ['rollbackReady', 'Rollback ready'],
+  ['idempotent', 'Idempotent'],
+  ['multiRegion', 'Multi-region'],
+] as const;
+
 export default function SystemDesignStudio({
   scenario,
   draft,
@@ -28,6 +39,7 @@ export default function SystemDesignStudio({
   draft?: SystemDesignDraft;
   initialAttempts: SystemDesignAttempt[];
 }) {
+  const initialPhase = scenario.phases?.[0];
   const [graph, setGraph] = useState<SystemDesignGraph>(() =>
     structuredClone(draft?.graph ?? scenario.initialGraph),
   );
@@ -35,13 +47,22 @@ export default function SystemDesignStudio({
   const [connectingFrom, setConnectingFrom] = useState<string>();
   const [blockType, setBlockType] = useState<SystemNodeType>('service');
   const [draftName, setDraftName] = useState(draft?.name ?? 'My architecture');
-  const [flowId, setFlowId] = useState(scenario.flows[0]?.id ?? '');
+  const [phaseId, setPhaseId] = useState(initialPhase?.id ?? '');
+  const [flowId, setFlowId] = useState(
+    initialPhase?.flowIds[0] ?? scenario.flows[0]?.id ?? '',
+  );
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [proposal, setProposal] = useState<DesignProposal>();
   const [tradeOffs, setTradeOffs] = useState('');
   const [attempts, setAttempts] = useState(initialAttempts);
   const [state, send] = useMachine(playbackMachine);
+  const currentPhase = scenario.phases?.find((phase) => phase.id === phaseId);
+  const availableFlows = useMemo(() => {
+    if (!currentPhase) return scenario.flows;
+    const allowed = new Set(currentPhase.flowIds);
+    return scenario.flows.filter((flow) => allowed.has(flow.id));
+  }, [currentPhase, scenario.flows]);
   const flow = useMemo(
     () => createSystemFlowSteps(scenario, graph, flowId),
     [flowId, graph, scenario],
@@ -51,6 +72,14 @@ export default function SystemDesignStudio({
       Math.min(state.context.stepIndex, Math.max(0, flow.steps.length - 1))
     ];
   const selected = graph.nodes.find((node) => node.id === selectedId);
+  const selectedEdges = graph.edges.filter(
+    (edge) => edge.from === selectedId || edge.to === selectedId,
+  );
+
+  useEffect(() => {
+    if (!availableFlows.some((candidate) => candidate.id === flowId))
+      setFlowId(availableFlows[0]?.id ?? '');
+  }, [availableFlows, flowId]);
 
   useEffect(() => {
     send({ type: 'SETUP', totalSteps: Math.max(1, flow.steps.length) });
@@ -194,6 +223,17 @@ export default function SystemDesignStudio({
     });
   }
 
+  function updateEdgeLabel(edgeId: string, label: string) {
+    setGraph({
+      ...graph,
+      edges: graph.edges.map((edge) =>
+        edge.id === edgeId
+          ? { ...edge, label: label.trimStart() || undefined }
+          : edge,
+      ),
+    });
+  }
+
   async function request(path: string, body: unknown) {
     const response = await fetch(path, {
       method: 'POST',
@@ -233,6 +273,7 @@ export default function SystemDesignStudio({
       const body = await request('/api/simulations/proposal', {
         scenarioSlug: scenario.slug,
         graph,
+        phaseId: currentPhase?.id,
       });
       setProposal(body.proposal);
       setMessage('Proposal ready. Preview it before applying.');
@@ -335,39 +376,39 @@ export default function SystemDesignStudio({
                 Replicas
                 <input
                   type="number"
-                  min="0"
-                  max="100"
-                  value={Number(selected.config.replicas ?? 0)}
+                  min="1"
+                  max="50"
+                  value={Number(selected.config.replicas ?? 1)}
                   onChange={(event) =>
                     updateSelected({
-                      config: { replicas: Number(event.target.value) },
+                      config: {
+                        replicas: Math.max(
+                          1,
+                          Math.min(50, Number(event.target.value)),
+                        ),
+                      },
                     })
                   }
                   className="field mt-2 w-24 px-3 py-2"
                 />
               </label>
-              <label className="flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 text-sm">
-                <input
-                  type="checkbox"
-                  checked={Boolean(selected.config.tls)}
-                  onChange={(event) =>
-                    updateSelected({ config: { tls: event.target.checked } })
-                  }
-                />
-                TLS
-              </label>
-              <label className="flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 text-sm">
-                <input
-                  type="checkbox"
-                  checked={Boolean(selected.config.durable)}
-                  onChange={(event) =>
-                    updateSelected({
-                      config: { durable: event.target.checked },
-                    })
-                  }
-                />
-                Durable
-              </label>
+              {booleanConfigKeys.map(([key, label]) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selected.config[key])}
+                    onChange={(event) =>
+                      updateSelected({
+                        config: { [key]: event.target.checked },
+                      })
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button
@@ -402,10 +443,67 @@ export default function SystemDesignStudio({
                 Select another block to create a directed connection.
               </p>
             )}
+            {selectedEdges.length > 0 && (
+              <div className="mt-5 border-t border-line pt-4">
+                <p className="eyebrow">Connection labels</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {selectedEdges.map((edge) => {
+                    const from = graph.nodes.find(
+                      (node) => node.id === edge.from,
+                    );
+                    const to = graph.nodes.find((node) => node.id === edge.to);
+                    return (
+                      <label key={edge.id} className="text-xs text-subtle">
+                        {from?.label} → {to?.label}
+                        <input
+                          value={edge.label ?? ''}
+                          onChange={(event) =>
+                            updateEdgeLabel(edge.id, event.target.value)
+                          }
+                          placeholder="Connection label"
+                          maxLength={80}
+                          className="field mt-2 w-full px-3 py-2"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
         )}
 
         <section className="panel p-5">
+          {scenario.phases && scenario.phases.length > 0 && (
+            <div className="mb-5 border-b border-line pb-5">
+              <p className="eyebrow">Migration phase</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {scenario.phases.map((phase) => (
+                  <button
+                    key={phase.id}
+                    type="button"
+                    onClick={() => setPhaseId(phase.id)}
+                    aria-pressed={phase.id === phaseId}
+                    className={`rounded-full border px-3 py-2 text-xs transition ${
+                      phase.id === phaseId
+                        ? 'border-ink bg-ink text-canvas'
+                        : 'border-line text-subtle hover:border-line-strong hover:text-ink'
+                    }`}
+                  >
+                    {phase.title}
+                  </button>
+                ))}
+              </div>
+              {currentPhase && (
+                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <p className="text-ink-soft">{currentPhase.goal}</p>
+                  <p className="rounded-xl border border-line bg-canvas/50 p-3 text-subtle">
+                    Gate · {currentPhase.gate}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <label className="flex-1 text-xs text-subtle">
               Representative flow
@@ -414,7 +512,7 @@ export default function SystemDesignStudio({
                 onChange={(event) => setFlowId(event.target.value)}
                 className="field mt-2 w-full px-3 py-2"
               >
-                {scenario.flows.map((flow) => (
+                {availableFlows.map((flow) => (
                   <option key={flow.id} value={flow.id}>
                     {flow.title}
                   </option>

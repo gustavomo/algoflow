@@ -5,6 +5,9 @@ import { createSystemFlowSteps } from './flowSteps';
 const scenario: SystemDesignScenario = {
   slug: 'request-flow',
   version: 1,
+  category: 'system-design',
+  topics: ['requests'],
+  estimatedMinutes: 10,
   title: 'Request flow',
   summary: 'Test scenario',
   difficulty: 'foundation',

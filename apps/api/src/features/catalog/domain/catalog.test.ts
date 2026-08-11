@@ -6,16 +6,53 @@ import {
   topics,
   tracks,
   validateCatalog,
+  validateLearningPathResources,
 } from './catalog';
 
 describe('catalog', () => {
   it('contains the approved seed curriculum with valid references', () => {
-    expect(tracks).toHaveLength(9);
-    expect(topics).toHaveLength(12);
-    expect(lessons).toHaveLength(14);
-    expect(learningPaths).toHaveLength(25);
-    expect(assessments).toHaveLength(14);
+    expect(tracks).toHaveLength(10);
+    expect(topics).toHaveLength(13);
+    expect(lessons).toHaveLength(17);
+    expect(learningPaths).toHaveLength(27);
+    expect(assessments).toHaveLength(17);
     expect(validateCatalog()).toEqual([]);
+  });
+
+  it('gives every path a deep curriculum and optional primary resources', () => {
+    for (const path of learningPaths) {
+      expect(path.modules.length).toBeGreaterThanOrEqual(5);
+      expect(path.modules.length).toBeLessThanOrEqual(7);
+      const resources = path.modules.flatMap(
+        (module) => module.resources ?? [],
+      );
+      expect(resources.length).toBeGreaterThanOrEqual(2);
+      expect(
+        resources.every((resource) => resource.url.startsWith('https://')),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects malformed, insecure, and duplicate resource metadata', () => {
+    const path = structuredClone(learningPaths[0]);
+    const resources = path.modules.flatMap((module) => module.resources ?? []);
+    resources[0].id = 'Invalid Resource ID';
+    resources[0].url = 'http://example.com/insecure';
+    resources[0].kind = 'social-post' as never;
+    resources[1].id = resources[0].id;
+
+    expect(validateLearningPathResources(path).join(' ')).toMatch(
+      /duplicate resource/i,
+    );
+    expect(validateLearningPathResources(path).join(' ')).toMatch(
+      /invalid resource identifier/i,
+    );
+    expect(validateLearningPathResources(path).join(' ')).toMatch(
+      /invalid resource url/i,
+    );
+    expect(validateLearningPathResources(path).join(' ')).toMatch(
+      /invalid resource invalid resource id/i,
+    );
   });
 
   it('keeps planned modules out of available lesson progress', () => {

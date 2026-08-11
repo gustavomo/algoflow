@@ -18,7 +18,7 @@ export default async function PathsPage() {
 
   return (
     <AppShell>
-      <p className="eyebrow text-ink">Nine learning tracks</p>
+      <p className="eyebrow text-ink">{tracks.length} learning tracks</p>
       <h1 className="mt-3 text-4xl font-semibold">Your learning roadmap</h1>
       <p className="mt-3 max-w-3xl text-muted">
         Available lessons are ready now. Planned modules show where each path

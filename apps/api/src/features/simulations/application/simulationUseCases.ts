@@ -120,17 +120,28 @@ export async function evaluateSimulation(
 
 export async function proposeSimulationDesign(
   provider: DesignProposalProvider,
-  input: { scenarioSlug: string; graph: SystemDesignGraph; question?: string },
+  input: {
+    scenarioSlug: string;
+    graph: SystemDesignGraph;
+    question?: string;
+    phaseId?: string;
+  },
 ) {
   const scenario = scenarioBySlug.get(input.scenarioSlug);
   if (!scenario)
     return { missing: true as const, error: 'Scenario not found.' };
   const errors = validateSystemGraph(input.graph);
   if (errors.length) return { error: errors.join(' ') };
+  const phase = input.phaseId
+    ? scenario.phases?.find((candidate) => candidate.id === input.phaseId)
+    : undefined;
+  if (input.phaseId && !phase)
+    return { error: 'The selected migration phase is not available.' };
   const output = await provider.propose({
     scenario,
     graph: input.graph,
     question: input.question,
+    phase,
   });
   const proposal = validatedProposal(
     input.graph,

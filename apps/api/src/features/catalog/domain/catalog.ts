@@ -4,11 +4,13 @@ import type {
   CurriculumDomain,
   LearningLevel,
   LearningPathDefinition,
+  LearningResource,
   LearningTrackDefinition,
   LessonDefinition,
   PathModuleDefinition,
   TopicDefinition,
 } from '@algoflow/contracts';
+import { isLearningResource } from '@algoflow/contracts';
 
 export const tracks: LearningTrackDefinition[] = [
   {
@@ -96,7 +98,12 @@ export const tracks: LearningTrackDefinition[] = [
       'Explain learning workflows',
       'Reason about neural models',
     ],
-    pathSlugs: ['mathematics-for-ai', 'machine-learning', 'deep-learning'],
+    pathSlugs: [
+      'mathematics-for-ai',
+      'artificial-intelligence-foundations',
+      'machine-learning',
+      'deep-learning',
+    ],
     order: 7,
   },
   {
@@ -132,6 +139,19 @@ export const tracks: LearningTrackDefinition[] = [
       'learning-how-to-learn',
     ],
     order: 9,
+  },
+  {
+    slug: 'technical-leadership',
+    title: 'Technical Leadership',
+    description:
+      'Grow from local delivery to durable technical and organizational impact.',
+    outcomes: [
+      'Set technical direction',
+      'Lead ambiguous cross-team work',
+      'Grow systems and engineers',
+    ],
+    pathSlugs: ['staff-engineer'],
+    order: 10,
   },
 ];
 
@@ -213,6 +233,13 @@ export const topics: TopicDefinition[] = [
     title: 'Technical Learning',
     description: 'Turn reading into durable, testable understanding.',
     domain: 'communication',
+  },
+  {
+    slug: 'technical-leadership',
+    title: 'Technical Leadership',
+    description:
+      'Create leverage through judgment, strategy, alignment, and durable systems.',
+    domain: 'engineering',
   },
 ];
 
@@ -471,9 +498,77 @@ export const lessons: LessonDefinition[] = [
     assessmentSlug: 'technical-reading-checkpoint',
     prerequisites: [],
   },
+  {
+    slug: 'staff-role-and-impact',
+    title: 'Staff Scope and Impact',
+    summary:
+      'Separate title from role and connect technical leadership to durable business impact.',
+    tech: 'general',
+    domain: 'engineering',
+    topicSlug: 'technical-leadership',
+    conceptIds: ['staff-scope', 'business-impact'],
+    estimatedMinutes: 24,
+    visualization: 'concept-flow',
+    conceptFlow: conceptFlow(
+      [
+        'Business context',
+        'Problem selection',
+        'Technical leverage',
+        'Durable impact',
+      ],
+      'Scope grows through leverage',
+    ),
+    assessmentSlug: 'staff-role-impact-checkpoint',
+    prerequisites: [],
+  },
+  {
+    slug: 'technical-strategy',
+    title: 'Write Technical Strategy',
+    summary:
+      'Turn business context and system constraints into a directional, testable plan.',
+    tech: 'general',
+    domain: 'engineering',
+    topicSlug: 'technical-leadership',
+    conceptIds: ['technical-strategy', 'strategic-tradeoffs'],
+    estimatedMinutes: 28,
+    visualization: 'concept-flow',
+    conceptFlow: conceptFlow(
+      ['Diagnosis', 'Guiding policy', 'Coherent actions', 'Success signals'],
+      'Direction before projects',
+    ),
+    assessmentSlug: 'technical-strategy-checkpoint',
+    prerequisites: ['staff-role-and-impact'],
+  },
+  {
+    slug: 'leading-cross-team-change',
+    title: 'Lead Cross-Team Change',
+    summary:
+      'De-risk a migration through ownership, staged delivery, validation, and rollback.',
+    tech: 'general',
+    domain: 'engineering',
+    topicSlug: 'technical-leadership',
+    conceptIds: ['migration-phases', 'cross-team-alignment'],
+    estimatedMinutes: 30,
+    visualization: 'concept-flow',
+    conceptFlow: conceptFlow(
+      [
+        'Shared problem',
+        'Incremental plan',
+        'Validation gates',
+        'Cutover',
+        'Learning',
+      ],
+      'Change is a sociotechnical system',
+    ),
+    assessmentSlug: 'cross-team-change-checkpoint',
+    prerequisites: ['technical-strategy'],
+  },
 ];
 
-function available(lessonSlug: string): PathModuleDefinition {
+function available(
+  lessonSlug: string,
+  resources: LearningResource[] = [],
+): PathModuleDefinition {
   const lesson = lessons.find((candidate) => candidate.slug === lessonSlug)!;
   return {
     id: lessonSlug,
@@ -482,6 +577,7 @@ function available(lessonSlug: string): PathModuleDefinition {
     status: 'available',
     lessonSlug,
     estimatedMinutes: lesson.estimatedMinutes,
+    resources,
   };
 }
 
@@ -490,8 +586,9 @@ function planned(
   title: string,
   summary: string,
   estimatedMinutes = 45,
+  resources: LearningResource[] = [],
 ): PathModuleDefinition {
-  return { id, title, summary, status: 'planned', estimatedMinutes };
+  return { id, title, summary, status: 'planned', estimatedMinutes, resources };
 }
 
 function practice(
@@ -500,8 +597,17 @@ function practice(
   summary: string,
   href: string,
   estimatedMinutes = 45,
+  resources: LearningResource[] = [],
 ): PathModuleDefinition {
-  return { id, title, summary, status: 'practice', href, estimatedMinutes };
+  return {
+    id,
+    title,
+    summary,
+    status: 'practice',
+    href,
+    estimatedMinutes,
+    resources,
+  };
 }
 
 function path(input: {
@@ -512,23 +618,30 @@ function path(input: {
   level?: LearningLevel;
   outcomes: string[];
   prerequisites?: string[];
+  resources?: LearningResource[];
   modules: PathModuleDefinition[];
 }): LearningPathDefinition {
+  const { resources = pathResources(input.slug), ...definition } = input;
+  const enrichedModules = [
+    ...definition.modules,
+    ...(PATH_MODULE_EXPANSIONS[input.slug] ?? []),
+  ];
+  const modules = enrichedModules.map((pathModule, index) => ({
+    ...pathModule,
+    resources: [
+      ...(pathModule.resources ?? []),
+      ...(resources[index] ? [resources[index]] : []),
+    ],
+  }));
   return {
-    ...input,
+    ...definition,
     level: input.level ?? 'foundation',
     prerequisitePathSlugs: input.prerequisites ?? [],
-    lessonSlugs: input.modules
-      .filter(
-        (
-          pathModule,
-        ): pathModule is Extract<
-          PathModuleDefinition,
-          { status: 'available' }
-        > => pathModule.status === 'available',
-      )
-      .map((pathModule) => pathModule.lessonSlug),
-    estimatedMinutes: input.modules.reduce(
+    modules,
+    lessonSlugs: modules.flatMap((pathModule) =>
+      pathModule.status === 'available' ? [pathModule.lessonSlug] : [],
+    ),
+    estimatedMinutes: modules.reduce(
       (total, pathModule) => total + pathModule.estimatedMinutes,
       0,
     ),
@@ -541,6 +654,879 @@ const roadmap = (
   summary: string,
   estimatedMinutes = 45,
 ) => planned(id, title, summary, estimatedMinutes);
+
+const PATH_MODULE_EXPANSIONS: Record<string, PathModuleDefinition[]> = {
+  'algorithm-foundations': [
+    roadmap(
+      'algorithm-correctness',
+      'Correctness and Invariants',
+      'State loop invariants and use them to explain why an algorithm works.',
+    ),
+    roadmap(
+      'algorithm-profiling-lab',
+      'Profiling Lab',
+      'Measure time and space behavior instead of relying on intuition alone.',
+    ),
+  ],
+  'array-patterns': [
+    roadmap(
+      'prefix-sums',
+      'Prefix Sums',
+      'Precompute cumulative state for fast range queries.',
+    ),
+    roadmap(
+      'monotonic-structures',
+      'Monotonic Stacks and Queues',
+      'Maintain ordered candidates while scanning an array once.',
+    ),
+    roadmap(
+      'array-pattern-selection',
+      'Pattern Selection Lab',
+      'Choose among pointers, windows, prefix sums, and monotonic structures.',
+    ),
+  ],
+  'graph-traversal': [
+    roadmap(
+      'graph-representations',
+      'Graph Representations',
+      'Choose adjacency lists, matrices, or implicit neighbor functions.',
+    ),
+    roadmap(
+      'weighted-shortest-paths',
+      'Weighted Shortest Paths',
+      'Recognize when BFS must give way to Dijkstra or A*.',
+    ),
+    roadmap(
+      'graph-topology',
+      'Cycles and Topological Order',
+      'Detect dependencies, cycles, and valid execution orders.',
+    ),
+  ],
+  'software-engineering-fundamentals': [
+    roadmap(
+      'testing-feedback-loops',
+      'Testing and Feedback Loops',
+      'Select fast evidence at unit, integration, and system boundaries.',
+    ),
+    roadmap(
+      'observability-operations',
+      'Observability and Operations',
+      'Use signals and runbooks to understand production behavior.',
+    ),
+    roadmap(
+      'secure-delivery',
+      'Secure Delivery',
+      'Build security checks into design, implementation, and release work.',
+    ),
+  ],
+  'general-mathematics': [
+    roadmap(
+      'logic-proofs',
+      'Logic and Proofs',
+      'Construct precise claims with implication, induction, and contradiction.',
+    ),
+    roadmap(
+      'calculus-foundations',
+      'Calculus Foundations',
+      'Interpret rates of change, limits, derivatives, and integrals.',
+    ),
+    roadmap(
+      'mathematical-modeling',
+      'Mathematical Modeling',
+      'Translate an engineering situation into variables and relationships.',
+    ),
+  ],
+  javascript: [
+    roadmap(
+      'js-modules-tooling',
+      'Modules and Tooling',
+      'Use module boundaries, packages, builds, and source maps deliberately.',
+    ),
+    roadmap(
+      'js-performance-memory',
+      'Performance and Memory',
+      'Profile allocation, garbage collection, and runtime bottlenecks.',
+    ),
+    roadmap(
+      'js-production-design',
+      'Production JavaScript Design',
+      'Combine contracts, errors, testing, and observability in a small service.',
+    ),
+  ],
+  go: [
+    roadmap(
+      'go-testing-tooling',
+      'Testing and Tooling',
+      'Use table tests, fuzzing, benchmarks, and the race detector.',
+    ),
+    roadmap(
+      'go-performance',
+      'Go Performance',
+      'Inspect allocations, profiles, scheduling, and contention.',
+    ),
+    roadmap(
+      'go-production-service',
+      'Production Service Lab',
+      'Build a cancellable, observable service with graceful shutdown.',
+    ),
+  ],
+  'design-patterns': [
+    roadmap(
+      'domain-patterns',
+      'Domain and Integration Patterns',
+      'Separate domain policy from infrastructure and integration concerns.',
+    ),
+    roadmap(
+      'distributed-patterns',
+      'Distributed Systems Patterns',
+      'Apply idempotency, outbox, saga, and retry patterns safely.',
+    ),
+    roadmap(
+      'pattern-refactoring-lab',
+      'Pattern Refactoring Lab',
+      'Refactor toward a pattern only after identifying measurable design pressure.',
+    ),
+  ],
+  'system-design': [
+    roadmap(
+      'system-requirements-capacity',
+      'Requirements and Capacity',
+      'Turn product goals into scale estimates and system constraints.',
+    ),
+    practice(
+      'system-design-capstone',
+      'Architecture Capstone',
+      'Build and evaluate a complete design under changing constraints.',
+      '/simulations/notification-delivery-platform',
+      60,
+    ),
+  ],
+  'networking-cdn': [
+    roadmap(
+      'dns-routing',
+      'DNS and Routing',
+      'Trace name resolution and routing decisions across the internet.',
+    ),
+    roadmap(
+      'network-resilience',
+      'Timeouts, Retries, and Resilience',
+      'Set deadlines and retry budgets without amplifying failures.',
+    ),
+    roadmap(
+      'network-debugging-lab',
+      'Network Debugging Lab',
+      'Use protocol evidence to isolate latency and connectivity problems.',
+    ),
+  ],
+  'database-fundamentals': [
+    roadmap(
+      'database-distribution',
+      'Replication and Partitioning',
+      'Scale reads and writes while naming consistency trade-offs.',
+    ),
+    roadmap(
+      'database-model-selection',
+      'Choosing a Data Model',
+      'Compare relational, document, key-value, graph, and analytical stores.',
+    ),
+    practice(
+      'database-design-lab',
+      'Database Design Lab',
+      'Design a safe data evolution and validation plan.',
+      '/simulations/online-database-migration',
+      55,
+    ),
+  ],
+  postgresql: [
+    roadmap(
+      'postgres-concurrency',
+      'MVCC and Concurrency',
+      'Reason about snapshots, locks, vacuum, and transaction conflicts.',
+    ),
+    roadmap(
+      'postgres-replication-ha',
+      'Replication and High Availability',
+      'Plan replicas, failover, recovery objectives, and consistency.',
+    ),
+    practice(
+      'postgres-migration-lab',
+      'PostgreSQL Migration Lab',
+      'Practice a phased online migration with validation and rollback.',
+      '/simulations/online-database-migration',
+      60,
+    ),
+  ],
+  mysql: [
+    roadmap(
+      'mysql-locking',
+      'Concurrency and Locking',
+      'Diagnose transaction isolation, locks, and deadlocks in InnoDB.',
+    ),
+    roadmap(
+      'mysql-operations',
+      'Backup and Operations',
+      'Plan monitoring, backup verification, restore, and maintenance.',
+    ),
+    practice(
+      'mysql-scaling-lab',
+      'MySQL Scaling Lab',
+      'Evaluate replicas, partitioning, and failover for a read-heavy system.',
+      '/simulations/read-scaling',
+      55,
+    ),
+  ],
+  docker: [
+    roadmap(
+      'docker-storage',
+      'Storage and State',
+      'Choose volumes, bind mounts, and external state boundaries.',
+    ),
+    roadmap(
+      'docker-security',
+      'Container Security',
+      'Reduce image, runtime, identity, and supply-chain risk.',
+    ),
+    roadmap(
+      'docker-delivery-lab',
+      'Container Delivery Lab',
+      'Build, scan, publish, and run a production-oriented image.',
+    ),
+  ],
+  kubernetes: [
+    roadmap(
+      'kubernetes-storage-state',
+      'State and Storage',
+      'Use persistent volumes and stateful workloads with clear recovery plans.',
+    ),
+    roadmap(
+      'kubernetes-security-observability',
+      'Security and Observability',
+      'Apply identities, policies, metrics, logs, and traces.',
+    ),
+    roadmap(
+      'kubernetes-operations-lab',
+      'Cluster Operations Lab',
+      'Debug a rollout, service path, and resource pressure incident.',
+    ),
+  ],
+  aws: [
+    roadmap(
+      'aws-data-integration',
+      'Data and Integration',
+      'Compose managed databases, streams, queues, and event services.',
+    ),
+    roadmap(
+      'aws-observability-governance',
+      'Observability and Governance',
+      'Set account boundaries, telemetry, policies, and audit controls.',
+    ),
+    practice(
+      'aws-migration-lab',
+      'AWS Migration Lab',
+      'Plan a reversible workload migration into managed cloud services.',
+      '/simulations/cloud-workload-migration',
+      60,
+    ),
+  ],
+  'mathematics-for-ai': [
+    roadmap(
+      'statistics-estimation',
+      'Statistics and Estimation',
+      'Estimate parameters, uncertainty, and the strength of evidence.',
+    ),
+    roadmap(
+      'optimization-ai',
+      'Optimization',
+      'Connect objectives, constraints, convexity, and numerical methods.',
+    ),
+    roadmap(
+      'math-ai-lab',
+      'Mathematical Modeling Lab',
+      'Derive and inspect the mathematics behind a small learning system.',
+    ),
+  ],
+  'machine-learning': [
+    roadmap(
+      'unsupervised-learning',
+      'Unsupervised Learning',
+      'Explore clustering, dimensionality reduction, and representation quality.',
+    ),
+    roadmap(
+      'ml-data-systems',
+      'Data and Feature Systems',
+      'Build reproducible data, feature, and experiment pipelines.',
+    ),
+    roadmap(
+      'ml-production',
+      'Production Machine Learning',
+      'Monitor drift, retraining, serving, and model risk.',
+    ),
+  ],
+  'deep-learning': [
+    roadmap(
+      'convolution-recurrence',
+      'Spatial and Sequential Models',
+      'Compare convolution, recurrence, and attention for structured data.',
+    ),
+    roadmap(
+      'deep-learning-systems',
+      'Training Systems',
+      'Manage data loading, accelerators, checkpoints, and distributed training.',
+    ),
+    roadmap(
+      'deep-learning-evaluation',
+      'Evaluation and Failure Analysis',
+      'Diagnose robustness, calibration, bias, and distribution shift.',
+    ),
+  ],
+  'ai-assisted-development': [
+    roadmap(
+      'ai-testing-debugging',
+      'AI-Assisted Testing and Debugging',
+      'Generate hypotheses and tests while preserving evidence and control.',
+    ),
+    roadmap(
+      'ai-security-privacy',
+      'Security and Privacy',
+      'Protect secrets, data boundaries, dependencies, and review authority.',
+    ),
+    roadmap(
+      'ai-delivery-workflow',
+      'Delivery Workflow Lab',
+      'Run a specification-to-evidence workflow on a bounded change.',
+    ),
+  ],
+  'llm-application-engineering': [
+    roadmap(
+      'llm-observability-cost',
+      'Observability and Cost',
+      'Trace requests, manage budgets, cache safely, and inspect failures.',
+    ),
+    roadmap(
+      'llm-safety-security',
+      'Safety and Security',
+      'Defend boundaries against injection, leakage, and unsafe actions.',
+    ),
+    roadmap(
+      'llm-production-capstone',
+      'Grounded Assistant Capstone',
+      'Ship a cited, evaluated, and cost-aware assistant feature.',
+    ),
+  ],
+  'agentic-engineering': [
+    roadmap(
+      'agent-orchestration',
+      'Agent Orchestration',
+      'Coordinate bounded workflows, handoffs, checkpoints, and human review.',
+    ),
+    roadmap(
+      'agent-reliability-observability',
+      'Reliability and Observability',
+      'Inspect trajectories, retries, state, cost, and failure recovery.',
+    ),
+    roadmap(
+      'agent-production-capstone',
+      'Agentic System Capstone',
+      'Build a permissioned agent that produces verifiable evidence.',
+    ),
+  ],
+  'technical-english': [
+    roadmap(
+      'english-listening-speaking',
+      'Listening and Speaking',
+      'Explain technical ideas and ask precise follow-up questions.',
+    ),
+    roadmap(
+      'english-design-review',
+      'Design Review Communication',
+      'Present trade-offs, disagreement, risks, and decisions clearly.',
+    ),
+    roadmap(
+      'english-writing-lab',
+      'Technical Writing Lab',
+      'Revise an engineering document for clarity, structure, and tone.',
+    ),
+  ],
+  'technical-reading': [
+    roadmap(
+      'paper-reading',
+      'Reading Papers and RFCs',
+      'Extract claims, evidence, assumptions, and open questions.',
+    ),
+    roadmap(
+      'reading-knowledge-system',
+      'A Reusable Knowledge System',
+      'Connect notes to questions, examples, reviews, and future work.',
+    ),
+    roadmap(
+      'technical-book-project',
+      'Technical Book Project',
+      'Turn one book into a sequence of explanations and experiments.',
+    ),
+  ],
+  'learning-how-to-learn': [
+    roadmap(
+      'deliberate-practice',
+      'Deliberate Practice',
+      'Target a specific weakness with immediate, informative feedback.',
+    ),
+    roadmap(
+      'learning-projects',
+      'Projects and Transfer',
+      'Apply knowledge in varied contexts to build flexible understanding.',
+    ),
+    roadmap(
+      'personal-learning-system',
+      'Personal Learning System',
+      'Design a sustainable weekly loop for study, review, and reflection.',
+    ),
+  ],
+};
+
+function resource(
+  id: string,
+  title: string,
+  provider: string,
+  url: string,
+  kind: LearningResource['kind'] = 'documentation',
+  access: LearningResource['access'] = 'free',
+): LearningResource {
+  return { id, title, provider, url, kind, access, language: 'en' };
+}
+
+const PATH_RESOURCES: Record<string, LearningResource[]> = {
+  'algorithm-foundations': [
+    resource(
+      'algorithms-mit-6006',
+      'Introduction to Algorithms',
+      'MIT OpenCourseWare',
+      'https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/',
+      'course',
+    ),
+    resource(
+      'algorithms-princeton',
+      'Algorithms, 4th Edition',
+      'Princeton University',
+      'https://algs4.cs.princeton.edu/home/',
+      'book',
+    ),
+  ],
+  'array-patterns': [
+    resource(
+      'arrays-mit-6006',
+      'Data Structures and Algorithms',
+      'MIT OpenCourseWare',
+      'https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/',
+      'course',
+    ),
+    resource(
+      'arrays-princeton',
+      'Sorting and Searching',
+      'Princeton University',
+      'https://algs4.cs.princeton.edu/20sorting/',
+      'course',
+    ),
+  ],
+  'graph-traversal': [
+    resource(
+      'graphs-princeton',
+      'Graph Algorithms',
+      'Princeton University',
+      'https://algs4.cs.princeton.edu/40graphs/',
+      'course',
+    ),
+    resource(
+      'graphs-berkeley-search',
+      'State Spaces and Search',
+      'UC Berkeley',
+      'https://inst.eecs.berkeley.edu/~cs188/textbook/search/',
+      'course',
+    ),
+  ],
+  'software-engineering-fundamentals': [
+    resource(
+      'swe-swebok',
+      'Software Engineering Body of Knowledge',
+      'IEEE Computer Society',
+      'https://www.computer.org/education/bodies-of-knowledge/software-engineering',
+      'guide',
+    ),
+    resource(
+      'swe-google-sre',
+      'Site Reliability Engineering',
+      'Google',
+      'https://sre.google/sre-book/table-of-contents/',
+      'book',
+    ),
+  ],
+  'general-mathematics': [
+    resource(
+      'math-mit-discrete',
+      'Mathematics for Computer Science',
+      'MIT OpenCourseWare',
+      'https://ocw.mit.edu/courses/6-042j-mathematics-for-computer-science-spring-2015/',
+      'course',
+    ),
+    resource(
+      'math-mit-linear-algebra',
+      'Linear Algebra',
+      'MIT OpenCourseWare',
+      'https://ocw.mit.edu/courses/18-06sc-linear-algebra-fall-2011/',
+      'course',
+    ),
+  ],
+  javascript: [
+    resource(
+      'javascript-mdn-guide',
+      'JavaScript Guide',
+      'MDN Web Docs',
+      'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide',
+      'guide',
+    ),
+    resource(
+      'javascript-ecma262',
+      'ECMAScript Language Specification',
+      'Ecma International',
+      'https://tc39.es/ecma262/',
+    ),
+  ],
+  go: [
+    resource(
+      'go-official-tutorials',
+      'Go Tutorials',
+      'The Go Project',
+      'https://go.dev/doc/tutorial/',
+      'course',
+    ),
+    resource(
+      'go-effective-go',
+      'Effective Go',
+      'The Go Project',
+      'https://go.dev/doc/effective_go',
+      'guide',
+    ),
+  ],
+  'design-patterns': [
+    resource(
+      'patterns-azure-catalog',
+      'Cloud Design Patterns',
+      'Microsoft',
+      'https://learn.microsoft.com/en-us/azure/architecture/patterns/',
+      'guide',
+    ),
+    resource(
+      'patterns-aws-guidance',
+      'Cloud Design Patterns',
+      'AWS',
+      'https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/introduction.html',
+      'guide',
+    ),
+  ],
+  'system-design': [
+    resource(
+      'system-design-aws-waf',
+      'AWS Well-Architected Framework',
+      'AWS',
+      'https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html',
+      'guide',
+    ),
+    resource(
+      'system-design-azure-center',
+      'Azure Architecture Center',
+      'Microsoft',
+      'https://learn.microsoft.com/en-us/azure/architecture/',
+      'guide',
+    ),
+  ],
+  'networking-cdn': [
+    resource(
+      'networking-mdn-http',
+      'Overview of HTTP',
+      'MDN Web Docs',
+      'https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview',
+      'guide',
+    ),
+    resource(
+      'networking-cloudflare-cdn',
+      'What is a CDN?',
+      'Cloudflare',
+      'https://www.cloudflare.com/learning/cdn/what-is-a-cdn/',
+      'guide',
+    ),
+  ],
+  'database-fundamentals': [
+    resource(
+      'database-cmu-15445',
+      'Introduction to Database Systems',
+      'Carnegie Mellon University',
+      'https://15445.courses.cs.cmu.edu/',
+      'course',
+    ),
+    resource(
+      'database-postgres-tutorial',
+      'PostgreSQL Tutorial',
+      'PostgreSQL Global Development Group',
+      'https://www.postgresql.org/docs/current/tutorial.html',
+      'guide',
+    ),
+  ],
+  postgresql: [
+    resource(
+      'postgresql-current-docs',
+      'PostgreSQL Documentation',
+      'PostgreSQL Global Development Group',
+      'https://www.postgresql.org/docs/current/',
+    ),
+    resource(
+      'postgresql-explain',
+      'Using EXPLAIN',
+      'PostgreSQL Global Development Group',
+      'https://www.postgresql.org/docs/current/using-explain.html',
+      'guide',
+    ),
+  ],
+  mysql: [
+    resource(
+      'mysql-reference',
+      'MySQL 8.4 Reference Manual',
+      'Oracle',
+      'https://dev.mysql.com/doc/refman/8.4/en/',
+    ),
+    resource(
+      'mysql-optimization',
+      'MySQL Optimization',
+      'Oracle',
+      'https://dev.mysql.com/doc/refman/8.4/en/optimization.html',
+      'guide',
+    ),
+  ],
+  docker: [
+    resource(
+      'docker-get-started',
+      'Get Started with Docker',
+      'Docker',
+      'https://docs.docker.com/get-started/',
+      'course',
+    ),
+    resource(
+      'docker-build-best-practices',
+      'Building Best Practices',
+      'Docker',
+      'https://docs.docker.com/build/building/best-practices/',
+      'guide',
+    ),
+  ],
+  kubernetes: [
+    resource(
+      'kubernetes-basics',
+      'Learn Kubernetes Basics',
+      'Kubernetes',
+      'https://kubernetes.io/docs/tutorials/kubernetes-basics/',
+      'course',
+    ),
+    resource(
+      'kubernetes-concepts',
+      'Kubernetes Concepts',
+      'Kubernetes',
+      'https://kubernetes.io/docs/concepts/',
+    ),
+  ],
+  aws: [
+    resource(
+      'aws-cloud-essentials',
+      'Cloud Essentials Learning Plan',
+      'AWS',
+      'https://aws.amazon.com/training/learn-about/cloud-practitioner/',
+      'course',
+      'freemium',
+    ),
+    resource(
+      'aws-well-architected',
+      'AWS Well-Architected Framework',
+      'AWS',
+      'https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html',
+      'guide',
+    ),
+  ],
+  'mathematics-for-ai': [
+    resource(
+      'ai-math-mit-linear-algebra',
+      'Linear Algebra',
+      'MIT OpenCourseWare',
+      'https://ocw.mit.edu/courses/18-06sc-linear-algebra-fall-2011/',
+      'course',
+    ),
+    resource(
+      'ai-math-d2l-preliminaries',
+      'Mathematical Preliminaries',
+      'Dive into Deep Learning',
+      'https://d2l.ai/chapter_preliminaries/index.html',
+      'book',
+    ),
+  ],
+  'artificial-intelligence-foundations': [
+    resource(
+      'ai-foundations-berkeley',
+      'Introduction to Artificial Intelligence',
+      'UC Berkeley',
+      'https://inst.eecs.berkeley.edu/~cs188/textbook/',
+      'course',
+    ),
+    resource(
+      'ai-foundations-mit',
+      'Artificial Intelligence',
+      'MIT OpenCourseWare',
+      'https://ocw.mit.edu/courses/6-034-artificial-intelligence-fall-2010/',
+      'course',
+    ),
+  ],
+  'machine-learning': [
+    resource(
+      'ml-google-crash-course',
+      'Machine Learning Crash Course',
+      'Google',
+      'https://developers.google.com/machine-learning/crash-course',
+      'course',
+    ),
+    resource(
+      'ml-stanford-cs229',
+      'CS229 Machine Learning',
+      'Stanford University',
+      'https://cs229.stanford.edu/materials.html-full',
+      'course',
+    ),
+  ],
+  'deep-learning': [
+    resource(
+      'deep-learning-d2l',
+      'Dive into Deep Learning',
+      'Cambridge University Press',
+      'https://d2l.ai/',
+      'book',
+    ),
+    resource(
+      'deep-learning-goodfellow',
+      'Deep Learning',
+      'MIT Press',
+      'https://www.deeplearningbook.org/',
+      'book',
+    ),
+  ],
+  'ai-assisted-development': [
+    resource(
+      'ai-development-github-prompts',
+      'Prompt Engineering for GitHub Copilot',
+      'GitHub',
+      'https://docs.github.com/en/copilot/concepts/prompt-engineering',
+      'guide',
+    ),
+    resource(
+      'ai-development-github-best-practices',
+      'Best Practices for GitHub Copilot',
+      'GitHub',
+      'https://docs.github.com/en/copilot/get-started/best-practices',
+      'guide',
+    ),
+  ],
+  'llm-application-engineering': [
+    resource(
+      'llm-openai-guides',
+      'OpenAI API Guides',
+      'OpenAI',
+      'https://developers.openai.com/api/docs/guides/',
+      'guide',
+    ),
+    resource(
+      'llm-openai-evals',
+      'Evals API',
+      'OpenAI',
+      'https://developers.openai.com/api/reference/resources/evals/',
+    ),
+  ],
+  'agentic-engineering': [
+    resource(
+      'agents-openai-practical-guide',
+      'A Practical Guide to Building AI Agents',
+      'OpenAI',
+      'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/',
+      'guide',
+    ),
+    resource(
+      'agents-openai-sdk',
+      'OpenAI Agents SDK',
+      'OpenAI',
+      'https://openai.github.io/openai-agents-js/',
+    ),
+  ],
+  'technical-english': [
+    resource(
+      'english-british-council-reading',
+      'English Reading Practice',
+      'British Council',
+      'https://learnenglish.britishcouncil.org/free-resources/reading',
+      'course',
+    ),
+    resource(
+      'english-british-council-email',
+      'English for Emails',
+      'British Council',
+      'https://learnenglish.britishcouncil.org/business/english-emails',
+      'course',
+    ),
+  ],
+  'technical-reading': [
+    resource(
+      'reading-purdue-technical-writing',
+      'Professional and Technical Writing',
+      'Purdue OWL',
+      'https://owl.purdue.edu/owl/subject_specific_writing/professional_technical_writing/index.html',
+      'guide',
+    ),
+    resource(
+      'reading-british-council-c1',
+      'C1 Reading Practice',
+      'British Council',
+      'https://learnenglish.britishcouncil.org/free-resources/reading/c1',
+      'course',
+    ),
+  ],
+  'learning-how-to-learn': [
+    resource(
+      'learning-retrieval-practice',
+      'Test-Enhanced Learning',
+      'Psychological Science',
+      'https://doi.org/10.1111/j.1467-9280.2006.01693.x',
+      'paper',
+    ),
+    resource(
+      'learning-spacing-review',
+      'Distributed Practice Review',
+      'PubMed',
+      'https://pubmed.ncbi.nlm.nih.gov/16719566/',
+      'paper',
+    ),
+  ],
+  'staff-engineer': [
+    resource(
+      'staff-gitlab-framework',
+      'Engineering Career Framework: Staff',
+      'GitLab',
+      'https://handbook.gitlab.com/handbook/engineering/careers/matrix/staff/',
+      'guide',
+    ),
+    resource(
+      'staff-dropbox-framework',
+      'IC5 Staff Software Engineer',
+      'Dropbox',
+      'https://dropbox.github.io/dbx-career-framework/ic5_staff_software_engineer.html',
+      'guide',
+    ),
+  ],
+};
+
+function pathResources(slug: string) {
+  return PATH_RESOURCES[slug] ?? [];
+}
 
 export const learningPaths: LearningPathDefinition[] = [
   path({
@@ -978,6 +1964,51 @@ export const learningPaths: LearningPathDefinition[] = [
     ],
   }),
   path({
+    slug: 'artificial-intelligence-foundations',
+    title: 'Artificial Intelligence Foundations',
+    description:
+      'Understand the major AI paradigms before specializing in learned or agentic systems.',
+    trackSlug: 'ai-foundations',
+    outcomes: [
+      'Distinguish search, reasoning, learning, and planning',
+      'Model an intelligent task and its environment',
+      'Evaluate capability, uncertainty, and responsible use',
+    ],
+    prerequisites: ['mathematics-for-ai'],
+    modules: [
+      roadmap(
+        'ai-history-paradigms',
+        'AI Paradigms and History',
+        'Compare symbolic, statistical, and hybrid approaches to intelligent behavior.',
+      ),
+      roadmap(
+        'intelligent-agents',
+        'Agents and Environments',
+        'Describe goals, observations, actions, state, and rational behavior.',
+      ),
+      roadmap(
+        'search-planning',
+        'Search and Planning',
+        'Explore state spaces with informed search, constraints, and planning.',
+      ),
+      roadmap(
+        'knowledge-reasoning',
+        'Knowledge and Reasoning',
+        'Represent facts and use logic or probability to draw conclusions.',
+      ),
+      roadmap(
+        'ai-learning-landscape',
+        'Learning Systems Landscape',
+        'Locate supervised, unsupervised, reinforcement, and generative learning.',
+      ),
+      roadmap(
+        'responsible-ai-foundations',
+        'Responsible AI Foundations',
+        'Evaluate uncertainty, fairness, privacy, safety, and human oversight.',
+      ),
+    ],
+  }),
+  path({
     slug: 'machine-learning',
     title: 'Machine Learning',
     description: 'Train and evaluate supervised and unsupervised models.',
@@ -988,7 +2019,10 @@ export const learningPaths: LearningPathDefinition[] = [
       'Prevent leakage',
       'Evaluate generalization',
     ],
-    prerequisites: ['mathematics-for-ai'],
+    prerequisites: [
+      'mathematics-for-ai',
+      'artificial-intelligence-foundations',
+    ],
     modules: [
       roadmap(
         'ml-workflow',
@@ -1199,6 +2233,51 @@ export const learningPaths: LearningPathDefinition[] = [
         'feedback-metacognition',
         'Feedback and Metacognition',
         'Compare confidence with actual evidence.',
+      ),
+    ],
+  }),
+  path({
+    slug: 'staff-engineer',
+    title: 'Staff Engineer',
+    description:
+      'Develop the technical judgment, organizational leverage, and durable leadership expected at Staff scope.',
+    trackSlug: 'technical-leadership',
+    level: 'advanced',
+    outcomes: [
+      'Connect technical direction to business outcomes',
+      'Lead ambiguous work across teams without relying on authority',
+      'Improve architecture, delivery, reliability, and engineering capability',
+    ],
+    prerequisites: [
+      'software-engineering-fundamentals',
+      'system-design',
+      'technical-reading',
+    ],
+    modules: [
+      available('staff-role-and-impact'),
+      available('technical-strategy'),
+      available('leading-cross-team-change'),
+      roadmap(
+        'staff-architecture-evolution',
+        'Architecture Evolution',
+        'Guide system boundaries and migrations without creating a permanent rewrite program.',
+      ),
+      roadmap(
+        'staff-operational-excellence',
+        'Operational Excellence',
+        'Use reliability, security, cost, and incident learning as design inputs.',
+      ),
+      roadmap(
+        'staff-multiplying-engineers',
+        'Multiplying Engineers',
+        'Raise decision quality through mentoring, standards, and better technical forums.',
+      ),
+      practice(
+        'staff-change-capstone',
+        'Cross-Team Change Capstone',
+        'Propose, simulate, and evaluate a reversible multi-team migration.',
+        '/simulations/monolith-strangler-migration',
+        75,
       ),
     ],
   }),
@@ -1495,6 +2574,54 @@ export const assessments: AssessmentDefinition[] = [
       'Retrieval exposes missing understanding and strengthens memory.',
     conceptId: 'active-recall',
   }),
+  starterAssessment({
+    slug: 'staff-role-impact-checkpoint',
+    lessonSlug: 'staff-role-and-impact',
+    title: 'Staff Scope and Impact Checkpoint',
+    question: 'What most clearly demonstrates Staff-level impact?',
+    options: [
+      'A durable improvement across an important organizational boundary',
+      'Writing the most code on one team',
+      'Approving every technical decision',
+      'Owning the largest meeting calendar',
+    ],
+    answer: 'A durable improvement across an important organizational boundary',
+    explanation:
+      'Staff scope is defined by consequential, durable leverage rather than activity or authority.',
+    conceptId: 'staff-scope',
+  }),
+  starterAssessment({
+    slug: 'technical-strategy-checkpoint',
+    lessonSlug: 'technical-strategy',
+    title: 'Technical Strategy Checkpoint',
+    question: 'What connects a strategy diagnosis to execution?',
+    options: [
+      'A guiding policy and coherent actions',
+      'A longer project list',
+      'A fixed technology choice',
+      'A quarterly presentation',
+    ],
+    answer: 'A guiding policy and coherent actions',
+    explanation:
+      'Strategy focuses choices through a policy and a mutually reinforcing set of actions.',
+    conceptId: 'technical-strategy',
+  }),
+  starterAssessment({
+    slug: 'cross-team-change-checkpoint',
+    lessonSlug: 'leading-cross-team-change',
+    title: 'Cross-Team Change Checkpoint',
+    question: 'What makes a high-risk migration safer to lead?',
+    options: [
+      'Explicit validation gates and a tested rollback path',
+      'One irreversible cutover',
+      'Keeping ownership implicit',
+      'Measuring only after completion',
+    ],
+    answer: 'Explicit validation gates and a tested rollback path',
+    explanation:
+      'Incremental validation and rollback reduce technical and organizational risk.',
+    conceptId: 'migration-phases',
+  }),
 ];
 
 export const lessonBySlug = new Map(
@@ -1533,6 +2660,31 @@ function hasPathCycle(
   return false;
 }
 
+export function validateLearningPathResources(item: LearningPathDefinition) {
+  const errors: string[] = [];
+  const resources = item.modules.flatMap(
+    (pathModule) => pathModule.resources ?? [],
+  );
+  if (resources.length < 2)
+    errors.push(`${item.slug}: expected at least 2 resources`);
+  for (const duplicate of duplicates(resources.map(({ id }) => id)))
+    errors.push(`${item.slug}: duplicate resource ${duplicate}`);
+  for (const learningResource of resources) {
+    const resourceId = learningResource.id;
+    if (!isLearningResource(learningResource))
+      errors.push(`${item.slug}: invalid resource ${resourceId}`);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(resourceId))
+      errors.push(`${item.slug}: invalid resource identifier ${resourceId}`);
+    try {
+      const url = new URL(learningResource.url);
+      if (url.protocol !== 'https:') throw new Error('not https');
+    } catch {
+      errors.push(`${item.slug}: invalid resource URL ${resourceId}`);
+    }
+  }
+  return Array.from(new Set(errors));
+}
+
 export function validateCatalog() {
   const errors: string[] = [];
   for (const duplicate of duplicates(tracks.map((item) => item.slug)))
@@ -1569,6 +2721,9 @@ export function validateCatalog() {
     for (const prerequisite of item.prerequisitePathSlugs)
       if (!pathBySlug.has(prerequisite))
         errors.push(`${item.slug}: unknown prerequisite path ${prerequisite}`);
+    if (item.modules.length < 5 || item.modules.length > 7)
+      errors.push(`${item.slug}: expected 5-7 modules`);
+    errors.push(...validateLearningPathResources(item));
     for (const pathModule of item.modules)
       if (
         pathModule.status === 'available' &&
