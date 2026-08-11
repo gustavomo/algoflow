@@ -12,6 +12,7 @@ import {
   evaluateSimulation,
   getSimulationWorkspace,
   proposeSimulationDesign,
+  runSimulationChallenge,
   saveSimulationDraft,
 } from './simulationUseCases';
 
@@ -148,5 +149,21 @@ describe('simulation use cases', () => {
     expect([...reviews.reviews.values()][0]?.sourceType).toBe(
       'simulation-rubric',
     );
+  });
+
+  it('exposes and runs the scenario challenge without persistence', async () => {
+    const repository = new TestSimulationRepository();
+    const workspace = await getSimulationWorkspace(repository, 'url-shortener');
+    expect(workspace?.challenge?.id).toBe('url-shortener-traffic-spike');
+    const result = runSimulationChallenge({
+      scenarioSlug: workspace!.scenario.slug,
+      challengeId: workspace!.challenge!.id,
+      graph: workspace!.scenario.initialGraph,
+      loadProfile: 'surge',
+      failure: 'load-spike',
+      prediction: 'queue-pressure',
+    });
+    expect(result.value?.predictionMatches).toBe(true);
+    expect(repository.attempts).toHaveLength(0);
   });
 });

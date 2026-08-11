@@ -48,8 +48,8 @@ export default async function LessonPage({
         <span>/</span>
         <span>{lesson.title}</span>
       </div>
-      <div className="mt-8 grid gap-10 xl:grid-cols-[minmax(0,.86fr)_minmax(520px,1.14fr)]">
-        <article>
+      <div className="mt-8 grid min-w-0 gap-10 xl:grid-cols-[minmax(0,.86fr)_minmax(520px,1.14fr)]">
+        <article className="min-w-0">
           <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ink">
             <span>{lesson.tech}</span>
             <span className="text-faint">·</span>
@@ -70,7 +70,7 @@ export default async function LessonPage({
                 Monaco runs only in the client and keeps editing separate from
                 the lesson renderer.
               </p>
-              <div className="mt-4">
+              <div className="mt-4 min-w-0 max-w-full">
                 <LazyCodeEditor language={lesson.codeLanguage} />
               </div>
             </div>
@@ -81,7 +81,7 @@ export default async function LessonPage({
             lessonSlug={lesson.slug}
           />
         </article>
-        <section className="xl:sticky xl:top-28 xl:self-start">
+        <section className="order-first min-w-0 xl:order-none xl:sticky xl:top-28 xl:self-start">
           <LessonVizPlayer
             slug={lesson.slug}
             visualization={lesson.visualization}

@@ -1,15 +1,27 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import type { BubbleSortSnapshot } from '../../lib/algorithms/bubbleSort';
+import type { BubbleSortSnapshot } from '@algoflow/learning-engine';
 
 const WIDTH = 720;
 const HEIGHT = 330;
 
 export default function BubbleSortViz({
   snapshot,
+  mode = 'trace',
+  selectedItemIds = [],
+  tutorItemIds = [],
+  tutorLabel,
+  onSelectItem,
+  onSwapIntent,
 }: {
   snapshot: BubbleSortSnapshot;
+  mode?: 'trace' | 'challenge';
+  selectedItemIds?: string[];
+  tutorItemIds?: string[];
+  tutorLabel?: string;
+  onSelectItem?: (itemId: string) => void;
+  onSwapIntent?: (itemIds: [string, string]) => void;
 }) {
   const reducedMotion = useReducedMotion();
   const max = Math.max(...snapshot.items.map((item) => item.value), 1);
@@ -22,7 +34,10 @@ export default function BubbleSortViz({
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-2xl shadow-black/40">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4 font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
-        <span>Bubble Sort · execution trace</span>
+        <span>
+          Bubble Sort ·{' '}
+          {mode === 'challenge' ? 'decision lab' : 'execution trace'}
+        </span>
         <span
           className={
             snapshot.phase === 'complete' ? 'text-success' : 'text-warning'
@@ -31,9 +46,9 @@ export default function BubbleSortViz({
           {snapshot.phase}
         </span>
       </div>
-      <div className="grid grid-cols-3 border-b border-line px-6 py-4 text-sm">
+      <div className="grid grid-cols-3 border-b border-line px-4 py-4 text-sm sm:px-6">
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-faint">
+          <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-faint sm:text-[9px] sm:tracking-[0.2em]">
             Pass
           </p>
           <motion.p
@@ -46,7 +61,7 @@ export default function BubbleSortViz({
           </motion.p>
         </div>
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-faint">
+          <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-faint sm:text-[9px] sm:tracking-[0.2em]">
             Comparisons
           </p>
           <motion.p
@@ -59,7 +74,7 @@ export default function BubbleSortViz({
           </motion.p>
         </div>
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-faint">
+          <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-faint sm:text-[9px] sm:tracking-[0.2em]">
             Swaps
           </p>
           <motion.p
@@ -120,6 +135,8 @@ export default function BubbleSortViz({
         />
         {snapshot.items.map((item, index) => {
           const active = snapshot.compared?.includes(index) ?? false;
+          const selected = selectedItemIds.includes(item.id);
+          const tutorFocused = tutorItemIds.includes(item.id);
           const sorted = index >= snapshot.sortedFrom;
           const barHeight = 45 + (item.value / max) * 150;
           const targetX = startX + index * (barWidth + gap);
@@ -128,13 +145,40 @@ export default function BubbleSortViz({
               key={item.id}
               initial={false}
               animate={{ x: targetX }}
+              drag={onSwapIntent && !reducedMotion ? 'x' : false}
+              dragConstraints={{ left: -gap - barWidth, right: gap + barWidth }}
+              dragElastic={0.12}
+              dragSnapToOrigin
+              onDragEnd={(_, info) => {
+                if (!onSwapIntent || Math.abs(info.offset.x) < barWidth / 2)
+                  return;
+                const neighborIndex = info.offset.x > 0 ? index + 1 : index - 1;
+                const neighbor = snapshot.items[neighborIndex];
+                if (neighbor) onSwapIntent([item.id, neighbor.id]);
+              }}
+              onClick={() => onSelectItem?.(item.id)}
+              onKeyDown={(event) => {
+                if (!onSelectItem) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onSelectItem(item.id);
+                }
+              }}
+              tabIndex={onSelectItem ? 0 : undefined}
+              role={onSelectItem ? 'button' : undefined}
+              aria-pressed={onSelectItem ? selected : undefined}
+              aria-label={
+                onSelectItem
+                  ? `${selected ? 'Deselect' : 'Select'} value ${item.value}`
+                  : undefined
+              }
               transition={
                 reducedMotion
                   ? { duration: 0.01 }
                   : { type: 'spring', stiffness: 260, damping: 28 }
               }
             >
-              {active && !reducedMotion && (
+              {(active || tutorFocused) && !reducedMotion && (
                 <motion.rect
                   x={-8}
                   y={73}
@@ -143,7 +187,11 @@ export default function BubbleSortViz({
                   rx={14}
                   fill="#fafaf9"
                   initial={{ opacity: 0 }}
-                  animate={{ opacity: [0.03, 0.11, 0.03] }}
+                  animate={{
+                    opacity: tutorFocused
+                      ? [0.06, 0.16, 0.06]
+                      : [0.03, 0.11, 0.03],
+                  }}
                   transition={{ repeat: Infinity, duration: 1.2 }}
                 />
               )}
@@ -162,8 +210,17 @@ export default function BubbleSortViz({
                       : 'url(#bar-idle)',
                 }}
                 transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
-                stroke={sorted ? '#d6d3d1' : active ? '#ffffff' : '#57534e'}
-                strokeOpacity={active || sorted ? 0.7 : 0.25}
+                stroke={
+                  selected || active || tutorFocused
+                    ? '#ffffff'
+                    : sorted
+                      ? '#d6d3d1'
+                      : '#57534e'
+                }
+                strokeWidth={selected ? 4 : tutorFocused ? 3 : 1}
+                strokeOpacity={
+                  selected || active || tutorFocused || sorted ? 0.7 : 0.25
+                }
               />
               <text
                 x={barWidth / 2}
@@ -175,7 +232,7 @@ export default function BubbleSortViz({
               >
                 {item.value}
               </text>
-              {(active || sorted) && (
+              {(selected || active || tutorFocused || sorted) && (
                 <text
                   x={barWidth / 2}
                   y={68}
@@ -185,7 +242,13 @@ export default function BubbleSortViz({
                   fontSize="10"
                   letterSpacing="1"
                 >
-                  {active ? 'ACTIVE' : 'SETTLED'}
+                  {selected
+                    ? 'SELECTED'
+                    : tutorFocused
+                      ? 'TUTOR FOCUS'
+                      : active
+                        ? 'ACTIVE'
+                        : 'SETTLED'}
                 </text>
               )}
             </motion.g>
@@ -213,6 +276,19 @@ export default function BubbleSortViz({
             letterSpacing="2"
           >
             COMPARE PAIR
+          </text>
+        )}
+        {tutorLabel && tutorItemIds.length > 0 && (
+          <text
+            x={WIDTH / 2}
+            y="326"
+            textAnchor="middle"
+            fill="#a8a29e"
+            fontFamily="ui-monospace, monospace"
+            fontSize="9"
+            letterSpacing="1"
+          >
+            {tutorLabel.slice(0, 80).toUpperCase()}
           </text>
         )}
       </svg>

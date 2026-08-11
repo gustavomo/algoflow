@@ -42,6 +42,15 @@ export default async function SimulationsPage({
         Each scenario gives you an editable topology, representative traffic
         animation, deterministic rubric, and an optional AI patch you control.
       </p>
+      {process.env.ENABLE_SCENARIO_AUTHORING === '1' &&
+        process.env.NODE_ENV !== 'production' && (
+          <Link
+            href="/authoring/scenarios"
+            className="button-secondary mt-5 inline-flex px-4 py-2.5 text-sm"
+          >
+            Open local scenario authoring →
+          </Link>
+        )}
       <nav
         aria-label="Scenario categories"
         className="mt-8 flex flex-wrap gap-2"

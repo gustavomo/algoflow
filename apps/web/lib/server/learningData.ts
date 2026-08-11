@@ -6,6 +6,7 @@ import type {
   ReadingBook,
   ReadingBookDetail,
   ReviewState,
+  SystemChallengeDefinition,
   SystemDesignAttempt,
   SystemDesignDraft,
   SystemDesignScenario,
@@ -56,6 +57,7 @@ export async function getSimulations() {
 export const getSimulation = (slug: string) =>
   backendRequest<{
     scenario: SystemDesignScenario;
+    challenge?: SystemChallengeDefinition;
     draft?: SystemDesignDraft;
     attempts: SystemDesignAttempt[];
   }>(`/api/v1/simulations?slug=${encodeURIComponent(slug)}`);

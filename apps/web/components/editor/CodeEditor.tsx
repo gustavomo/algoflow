@@ -38,7 +38,7 @@ export default function CodeEditor({
   language?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-line">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-line">
       <Editor
         height="300px"
         theme="vs-dark"

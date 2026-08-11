@@ -19,6 +19,8 @@ AlgoFlow is a personal software-engineering learning workspace with animated les
 - In-app review queue plus daily Web Push reminders
 - Local JSON RAG with a swappable retriever interface
 - `gpt-4o-mini` explanations with deterministic mock fallback
+- Context-aware Socratic tutoring with scene overlays and a deterministic mock fallback
+- Local-only scenario draft authoring with deterministic schema, solvability, state, and visual evals
 - Shared instance access code; no user account system
 
 ## Quick start: fully offline
@@ -53,23 +55,24 @@ Production requires `DATABASE_URL`; the in-memory repository is intended only fo
 
 ## Environment variables
 
-| Variable                       | Application | Required in production | Purpose                                                                      |
-| ------------------------------ | ----------- | ---------------------- | ---------------------------------------------------------------------------- |
-| `APP_ACCESS_CODE`              | Web         | Yes                    | Shared code used to enter the personal instance.                             |
-| `ACCESS_COOKIE_SECRET`         | Web         | Yes                    | Secret used to sign the access cookie; use at least 32 random characters.    |
-| `MOCK_ACCESS`                  | Web         | No                     | Set to `1` only for local access bypass.                                     |
-| `BACKEND_URL`                  | Web         | Yes                    | Private base URL of the independently deployed API.                          |
-| `BACKEND_SHARED_SECRET`        | Both        | Yes                    | Server-only token authenticating web-to-API requests.                        |
-| `DATABASE_URL`                 | API         | Yes                    | PostgreSQL connection string and durable source of truth.                    |
-| `MOCK_PERSISTENCE`             | API         | No                     | Set to `1` for API-memory local development.                                 |
-| `OPENAI_API_KEY`               | API         | No                     | Enables real AI explanations; an empty value automatically selects the mock. |
-| `MOCK_AI`                      | API         | No                     | Set to `1` to force deterministic offline explanations.                      |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web         | For push               | Public VAPID key exposed to the browser.                                     |
-| `VAPID_PUBLIC_KEY`             | API         | For push               | Matching public VAPID key used by the sender.                                |
-| `VAPID_PRIVATE_KEY`            | API         | For push               | Server-only VAPID private key.                                               |
-| `VAPID_SUBJECT`                | API         | For push               | Contact URI, normally `mailto:you@example.com`.                              |
-| `CRON_SECRET`                  | API         | For push               | Bearer secret protecting the reminder endpoint.                              |
-| `REMINDER_TIMEZONE`            | API         | No                     | IANA timezone used to deduplicate the daily reminder window.                 |
+| Variable                       | Application | Required in production | Purpose                                                                                             |
+| ------------------------------ | ----------- | ---------------------- | --------------------------------------------------------------------------------------------------- |
+| `APP_ACCESS_CODE`              | Web         | Yes                    | Shared code used to enter the personal instance.                                                    |
+| `ACCESS_COOKIE_SECRET`         | Web         | Yes                    | Secret used to sign the access cookie; use at least 32 random characters.                           |
+| `MOCK_ACCESS`                  | Web         | No                     | Set to `1` only for local access bypass.                                                            |
+| `BACKEND_URL`                  | Web         | Yes                    | Private base URL of the independently deployed API.                                                 |
+| `BACKEND_SHARED_SECRET`        | Both        | Yes                    | Server-only token authenticating web-to-API requests.                                               |
+| `DATABASE_URL`                 | API         | Yes                    | PostgreSQL connection string and durable source of truth.                                           |
+| `MOCK_PERSISTENCE`             | API         | No                     | Set to `1` for API-memory local development.                                                        |
+| `OPENAI_API_KEY`               | API         | No                     | Enables real AI explanations; an empty value automatically selects the mock.                        |
+| `MOCK_AI`                      | API         | No                     | Set to `1` to force deterministic offline explanations.                                             |
+| `ENABLE_SCENARIO_AUTHORING`    | Both        | Never                  | Set to `1` in local development to enable export-only scenario authoring. Forced off in production. |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web         | For push               | Public VAPID key exposed to the browser.                                                            |
+| `VAPID_PUBLIC_KEY`             | API         | For push               | Matching public VAPID key used by the sender.                                                       |
+| `VAPID_PRIVATE_KEY`            | API         | For push               | Server-only VAPID private key.                                                                      |
+| `VAPID_SUBJECT`                | API         | For push               | Contact URI, normally `mailto:you@example.com`.                                                     |
+| `CRON_SECRET`                  | API         | For push               | Bearer secret protecting the reminder endpoint.                                                     |
+| `REMINDER_TIMEZONE`            | API         | No                     | IANA timezone used to deduplicate the daily reminder window.                                        |
 
 Generate VAPID keys with the installed Web Push CLI:
 
@@ -116,6 +119,8 @@ Content-Type: application/json
 
 The response contains `{ answer, citations, provider, cached }`. If citations are omitted, the server retrieves local context first. Explicit unknown citation IDs are rejected, and the provider receives only resolved local context.
 
+`POST /api/tutor` accepts a validated Bubble Sort or Design Lab scene plus a help level (`nudge`, `guided-question`, or `explanation`). Returned overlays are filtered against IDs in the submitted scene before reaching the browser.
+
 ### Learning state
 
 - `GET|POST /api/progress` reads the snapshot or updates a lesson.
@@ -140,6 +145,9 @@ Reading notes are never added to local retrieval or AI context. Only the learner
 - `POST /api/simulations/draft` validates and saves one mutable draft per scenario.
 - `POST /api/simulations/proposal` returns a validated AI patch and preview graph without persisting it.
 - `POST /api/simulations/evaluate` stores an immutable deterministic attempt and schedules failed rubric concepts for review.
+- `POST /api/simulations/challenge` runs an ephemeral prediction challenge with conceptual metric bands; it does not change the canonical score.
+
+Set `ENABLE_SCENARIO_AUTHORING=1` only in local development to open `/authoring/scenarios`. Its generate and validate APIs never persist or publish drafts. JSON export is available only after all blocking evals pass, and human review remains mandatory.
 
 Migration scenarios expose prepare, validate, cutover, rollback, and decommission phases with phase-specific flows and gates. The canonical score comes from versioned server rules, never from the AI provider. The offline mock and `gpt-4o-mini` provider share the same constrained patch boundary.
 
