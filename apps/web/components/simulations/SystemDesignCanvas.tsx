@@ -12,6 +12,8 @@ export default function SystemDesignCanvas({
   connectingFrom,
   activeNodeId,
   activeEdgeId,
+  emphasizedNodeIds = [],
+  emphasizedEdgeIds = [],
 }: {
   graph: SystemDesignGraph;
   onChange: (graph: SystemDesignGraph) => void;
@@ -20,11 +22,15 @@ export default function SystemDesignCanvas({
   connectingFrom?: string;
   activeNodeId?: string;
   activeEdgeId?: string;
+  emphasizedNodeIds?: string[];
+  emphasizedEdgeIds?: string[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ id: string; pointerId: number }>();
   const reducedMotion = useReducedMotion();
   const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  const emphasizedNodes = new Set(emphasizedNodeIds);
+  const emphasizedEdges = new Set(emphasizedEdgeIds);
 
   function move(event: React.PointerEvent<SVGSVGElement>) {
     const current = dragging.current;
@@ -86,6 +92,7 @@ export default function SystemDesignCanvas({
           const to = nodes.get(edge.to);
           if (!from || !to) return null;
           const active = edge.id === activeEdgeId;
+          const emphasized = emphasizedEdges.has(edge.id);
           return (
             <g key={edge.id}>
               <line
@@ -93,9 +100,11 @@ export default function SystemDesignCanvas({
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
-                stroke={active ? '#fafaf9' : '#57534e'}
-                strokeWidth={active ? 5 : 2}
-                strokeDasharray={active ? undefined : '8 6'}
+                stroke={active || emphasized ? '#fafaf9' : '#57534e'}
+                strokeWidth={active ? 5 : emphasized ? 3 : 2}
+                strokeDasharray={
+                  active ? undefined : emphasized ? '3 3' : '8 6'
+                }
               />
               <circle
                 cx={to.x}
@@ -130,6 +139,7 @@ export default function SystemDesignCanvas({
           const active = node.id === activeNodeId;
           const selected = node.id === selectedId;
           const source = node.id === connectingFrom;
+          const emphasized = emphasizedNodes.has(node.id);
           return (
             <motion.g
               key={node.id}
@@ -148,18 +158,24 @@ export default function SystemDesignCanvas({
                 width="130"
                 height="76"
                 rx="16"
-                fill={active ? '#fafaf9' : '#181818'}
+                fill={active ? '#fafaf9' : emphasized ? '#292929' : '#181818'}
                 stroke={
                   active
                     ? '#fafaf9'
-                    : source
-                      ? '#d6d3d1'
-                      : selected
-                        ? '#a8a29e'
-                        : '#57534e'
+                    : emphasized
+                      ? '#fafaf9'
+                      : source
+                        ? '#d6d3d1'
+                        : selected
+                          ? '#a8a29e'
+                          : '#57534e'
                 }
-                strokeWidth={active ? 4 : selected || source ? 3 : 1.5}
-                strokeDasharray={source ? '5 4' : undefined}
+                strokeWidth={
+                  active ? 4 : emphasized || selected || source ? 3 : 1.5
+                }
+                strokeDasharray={
+                  source ? '5 4' : emphasized ? '3 3' : undefined
+                }
               />
               <text
                 x={node.x}

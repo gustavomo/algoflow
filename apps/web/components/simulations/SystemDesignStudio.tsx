@@ -1,22 +1,28 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMachine } from '@xstate/react';
 import {
   SYSTEM_NODE_TYPES,
   type AIProviderSelection,
   type DesignProposal,
+  type SystemChallengeDefinition,
+  type SystemChallengeRunResult,
+  type SystemChallengeStep,
   type SystemDesignAttempt,
   type SystemDesignDraft,
   type SystemDesignGraph,
   type SystemDesignScenario,
   type SystemNodeType,
+  type TutorOverlay,
 } from '@algoflow/contracts';
 import playbackMachine from '../../lib/xstate/playbackMachine';
 import { createSystemFlowSteps } from '../../lib/simulations/flowSteps';
 import PlaybackBar from '../animation/PlaybackBar';
 import ProviderControls from '../ai/ProviderControls';
 import SystemDesignCanvas from './SystemDesignCanvas';
+import DesignChallengePanel from './DesignChallengePanel';
+import TutorPanel from '../tutor/TutorPanel';
 
 const nodeLabel = (type: SystemNodeType) =>
   type.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -34,10 +40,12 @@ const booleanConfigKeys = [
 
 export default function SystemDesignStudio({
   scenario,
+  challenge,
   draft,
   initialAttempts,
 }: {
   scenario: SystemDesignScenario;
+  challenge?: SystemChallengeDefinition;
   draft?: SystemDesignDraft;
   initialAttempts: SystemDesignAttempt[];
 }) {
@@ -60,6 +68,10 @@ export default function SystemDesignStudio({
     useState<AIProviderSelection>();
   const [tradeOffs, setTradeOffs] = useState('');
   const [attempts, setAttempts] = useState(initialAttempts);
+  const [challengeResult, setChallengeResult] =
+    useState<SystemChallengeRunResult>();
+  const [challengeStep, setChallengeStep] = useState<SystemChallengeStep>();
+  const [tutorOverlay, setTutorOverlay] = useState<TutorOverlay>();
   const [state, send] = useMachine(playbackMachine);
   const currentPhase = scenario.phases?.find((phase) => phase.id === phaseId);
   const availableFlows = useMemo(() => {
@@ -79,6 +91,43 @@ export default function SystemDesignStudio({
   const selectedEdges = graph.edges.filter(
     (edge) => edge.from === selectedId || edge.to === selectedId,
   );
+  const updateChallengeResult = useCallback(
+    (result?: SystemChallengeRunResult) => setChallengeResult(result),
+    [],
+  );
+  const updateChallengeStep = useCallback(
+    (step?: SystemChallengeStep) => setChallengeStep(step),
+    [],
+  );
+  const updateTutorOverlay = useCallback(
+    (overlay?: TutorOverlay) => setTutorOverlay(overlay),
+    [],
+  );
+  const tutorContext = useMemo(
+    () => ({
+      kind: 'design-lab' as const,
+      scenarioSlug: scenario.slug,
+      phaseId: currentPhase?.id,
+      graph,
+      selectedNodeId: selectedId,
+      challengeResult,
+      failedRuleIds: attempts[0]?.evaluation.evidence
+        .filter((item) => !item.passed)
+        .map((item) => item.ruleId),
+    }),
+    [
+      attempts,
+      challengeResult,
+      currentPhase?.id,
+      graph,
+      scenario.slug,
+      selectedId,
+    ],
+  );
+  const tutorNodeIds =
+    tutorOverlay?.kind === 'highlight-system' ? tutorOverlay.nodeIds : [];
+  const tutorEdgeIds =
+    tutorOverlay?.kind === 'highlight-system' ? tutorOverlay.edgeIds : [];
 
   useEffect(() => {
     if (!availableFlows.some((candidate) => candidate.id === flowId))
@@ -360,9 +409,27 @@ export default function SystemDesignStudio({
           selectedId={selectedId}
           onSelect={selectNode}
           connectingFrom={connectingFrom}
-          activeNodeId={currentStep?.nodeId}
-          activeEdgeId={currentStep?.edgeId}
+          activeNodeId={challengeStep?.nodeId ?? currentStep?.nodeId}
+          activeEdgeId={challengeStep?.edgeId ?? currentStep?.edgeId}
+          emphasizedNodeIds={[
+            ...(challengeResult?.affectedNodeIds ?? []),
+            ...tutorNodeIds,
+          ]}
+          emphasizedEdgeIds={[
+            ...(challengeResult?.affectedEdgeIds ?? []),
+            ...tutorEdgeIds,
+          ]}
         />
+
+        {challenge && (
+          <DesignChallengePanel
+            definition={challenge}
+            graph={graph}
+            phaseId={currentPhase?.id}
+            onResult={updateChallengeResult}
+            onActiveStep={updateChallengeStep}
+          />
+        )}
 
         {selected && (
           <section className="panel p-5">
@@ -674,6 +741,7 @@ export default function SystemDesignStudio({
             </div>
           )}
         </section>
+        <TutorPanel context={tutorContext} onOverlay={updateTutorOverlay} />
         {message && (
           <p
             role="status"

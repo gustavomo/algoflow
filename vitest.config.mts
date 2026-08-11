@@ -5,7 +5,10 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      include: ['apps/{api,web}/**/*.ts', 'packages/contracts/src/**/*.ts'],
+      include: [
+        'apps/{api,web}/**/*.ts',
+        'packages/{contracts,learning-engine}/src/**/*.ts',
+      ],
       exclude: ['**/__tests__/**', '**/.next/**', '**/*.d.ts'],
     },
   },

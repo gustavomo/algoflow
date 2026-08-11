@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@algoflow/contracts": "0.2.0",
+    "@algoflow/learning-engine": "0.2.0",
     "@monaco-editor/react": "4.6.0",
     "@xstate/react": "3.2.2",
     "framer-motion": "10.16.4",
