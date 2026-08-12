@@ -56,7 +56,7 @@ export default function SystemDesignCanvas({
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-line-strong bg-canvas">
+    <div className="overflow-x-auto border-y border-line-strong bg-canvas">
       <svg
         ref={svgRef}
         viewBox="0 0 1000 560"

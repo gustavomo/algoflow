@@ -6,7 +6,7 @@ const MAX_EASE = 3;
 
 export function createReviewState(
   conceptId: string,
-  lessonSlug: string,
+  lessonSlug?: string,
   now = new Date(),
 ): ReviewState {
   return {

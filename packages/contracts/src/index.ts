@@ -104,6 +104,35 @@ export type VisualizationKind =
   | 'dfs-grid'
   | 'concept-flow';
 
+export const VISUAL_SCENE_KINDS = [
+  'growth-curves',
+  'sorting-bars',
+  'pointer-search',
+  'sliding-window',
+  'grid-traversal',
+  'system-boundaries',
+  'event-loop',
+  'cdn-route',
+  'relational-schema',
+  'container-layers',
+  'vector-space',
+  'agent-loop',
+  'active-reading',
+  'impact-ripple',
+  'strategy-map',
+  'migration-timeline',
+] as const;
+
+export type VisualSceneKind = (typeof VISUAL_SCENE_KINDS)[number];
+export const VISUAL_STAGE_PHASES = [
+  'initial',
+  'transition',
+  'failure',
+  'recovery',
+  'terminal',
+] as const;
+export type VisualStagePhase = (typeof VISUAL_STAGE_PHASES)[number];
+
 export interface ConceptFlowNode {
   id: string;
   label: string;
@@ -117,17 +146,31 @@ export interface ConceptFlowConnection {
 }
 
 export interface ConceptFlowStep {
+  id: string;
+  phase: VisualStagePhase;
   label: string;
   narration: string;
   metric?: string;
   activeNodeIds: string[];
+  completedNodeIds?: string[];
+  failedNodeIds?: string[];
   activeConnectionIndexes?: number[];
 }
 
 export interface ConceptFlowNarrative {
+  version: 1;
+  scene: VisualSceneKind;
   nodes: ConceptFlowNode[];
   connections: ConceptFlowConnection[];
   steps: ConceptFlowStep[];
+  terminalSummary: string;
+}
+
+export interface VisualBlueprint {
+  version: 1;
+  scene: VisualSceneKind;
+  objective: string;
+  terminalEvidence: string;
 }
 
 export interface TopicDefinition {
@@ -135,6 +178,7 @@ export interface TopicDefinition {
   title: string;
   description: string;
   domain: CurriculumDomain;
+  assessmentSlug?: string;
 }
 
 export interface LessonDefinition {
@@ -201,33 +245,79 @@ export interface LearningPathDefinition {
   modules: PathModuleDefinition[];
   lessonSlugs: string[];
   estimatedMinutes: number;
+  assessmentSlug?: string;
+  visualBlueprint: VisualBlueprint;
+}
+
+export const ASSESSMENT_INTENTS = [
+  'diagnostic',
+  'recall',
+  'application',
+  'debugging',
+  'teach-back',
+  'exam',
+  'interview',
+] as const;
+export type AssessmentIntent = (typeof ASSESSMENT_INTENTS)[number];
+export type AssessmentDifficulty = 'foundation' | 'intermediate' | 'advanced';
+export type TransferLevel = 'familiar' | 'variant' | 'unfamiliar';
+export type AssessmentScope = {
+  kind: 'lesson' | 'topic' | 'path' | 'simulation';
+  slug: string;
+};
+
+interface AssessmentQuestionBase {
+  id: string;
+  prompt: string;
+  explanation: string;
+  conceptIds: string[];
+  intent?: AssessmentIntent;
+  difficulty?: AssessmentDifficulty;
+  transferLevel?: TransferLevel;
+  weight?: number;
+  remediationHref?: string;
 }
 
 export type AssessmentQuestion =
-  | {
-      id: string;
-      kind: 'multiple-choice' | 'text';
-      prompt: string;
-      options?: string[];
+  | ({
+      kind: 'multiple-choice';
+      options: string[];
       correctAnswer: string;
-      explanation: string;
-      conceptIds: string[];
-    }
-  | {
-      id: string;
-      kind: 'ordering';
-      prompt: string;
+    } & AssessmentQuestionBase)
+  | ({
+      kind: 'multiple-select';
       options: string[];
       correctAnswer: string[];
-      explanation: string;
-      conceptIds: string[];
-    };
+    } & AssessmentQuestionBase)
+  | ({
+      kind: 'short-answer';
+      acceptedAnswers: string[];
+    } & AssessmentQuestionBase)
+  | ({
+      kind: 'text';
+      correctAnswer: string;
+    } & AssessmentQuestionBase)
+  | ({
+      kind: 'numeric-range';
+      min: number;
+      max: number;
+      unit?: string;
+    } & AssessmentQuestionBase)
+  | ({
+      kind: 'ordering';
+      options: string[];
+      correctAnswer: string[];
+    } & AssessmentQuestionBase);
 
 export interface AssessmentDefinition {
   slug: string;
-  lessonSlug: string;
+  version?: 1;
+  scope?: AssessmentScope;
+  mode?: 'diagnostic' | 'mastery';
+  lessonSlug?: string;
   title: string;
   passingScore: number;
+  requiredIntents?: AssessmentIntent[];
   questions: AssessmentQuestion[];
 }
 
@@ -236,6 +326,16 @@ export interface GradedQuestion {
   correct: boolean;
   explanation: string;
   conceptIds: string[];
+  intent: AssessmentIntent;
+  weight: number;
+}
+
+export interface IntentEvidence {
+  intent: AssessmentIntent;
+  earned: number;
+  available: number;
+  correctCount: number;
+  totalCount: number;
 }
 
 export interface AssessmentGrade {
@@ -243,13 +343,22 @@ export interface AssessmentGrade {
   correctCount: number;
   totalCount: number;
   passed: boolean;
+  scorePassed: boolean;
+  gatesPassed: boolean;
+  diagnostic: boolean;
+  missingRequiredIntents: AssessmentIntent[];
+  intentEvidence: IntentEvidence[];
   failedConceptIds: string[];
   results: GradedQuestion[];
 }
 
 export type LessonStatus = 'not-started' | 'in-progress' | 'completed';
 export type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
-export type ReviewSourceType = 'lesson' | 'reading-note' | 'simulation-rubric';
+export type ReviewSourceType =
+  | 'lesson'
+  | 'reading-note'
+  | 'simulation-rubric'
+  | 'checkpoint';
 export type ReadingStatus = 'planned' | 'reading' | 'paused' | 'completed';
 
 export interface ReadingBook {
@@ -293,11 +402,14 @@ export interface AssessmentAttempt {
   id: string;
   assessmentSlug: string;
   lessonSlug: string;
+  assessmentVersion?: 1;
+  scope?: AssessmentScope;
   score: number;
   correctCount: number;
   totalCount: number;
   answers: Record<string, string | string[]>;
   failedConceptIds: string[];
+  missingRequiredIntents?: AssessmentIntent[];
   durationSeconds: number;
   createdAt: string;
 }
@@ -534,6 +646,7 @@ export interface SystemScenarioPhase {
 export interface SystemFlowStep {
   nodeId: string;
   edgeId?: string;
+  phase: VisualStagePhase;
   label: string;
   narration: string;
 }

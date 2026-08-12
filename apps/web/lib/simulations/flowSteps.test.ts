@@ -53,8 +53,18 @@ describe('system flow steps', () => {
     expect(
       createSystemFlowSteps(scenario, scenario.initialGraph, 'request').steps,
     ).toEqual([
-      expect.objectContaining({ nodeId: 'client', edgeId: undefined }),
-      expect.objectContaining({ nodeId: 'service', edgeId: 'request' }),
+      expect.objectContaining({ nodeId: 'client', phase: 'initial' }),
+      expect.objectContaining({
+        nodeId: 'client',
+        edgeId: undefined,
+        phase: 'transition',
+      }),
+      expect.objectContaining({
+        nodeId: 'service',
+        edgeId: 'request',
+        phase: 'transition',
+      }),
+      expect.objectContaining({ nodeId: 'service', phase: 'terminal' }),
     ]);
   });
 

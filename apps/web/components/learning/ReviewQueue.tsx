@@ -54,7 +54,7 @@ export default function ReviewQueue({
 
   if (!current)
     return (
-      <div className="rounded-3xl border border-success/40 bg-success-muted p-8">
+      <div className="border-y border-success/40 py-8">
         <p className="font-mono text-xs uppercase tracking-[0.24em] text-success">
           Queue clear
         </p>
@@ -77,7 +77,7 @@ export default function ReviewQueue({
     );
 
   return (
-    <div className="rounded-3xl border border-line bg-surface p-8">
+    <div className="border-y border-line py-8">
       <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.24em] text-subtle">
         <span>
           {current.sourceType === 'reading-note'
@@ -101,6 +101,14 @@ export default function ReviewQueue({
           Open source lesson ↗
         </Link>
       )}
+      {current.sourceType === 'checkpoint' && current.sourceId && (
+        <Link
+          href={`/assessments/${current.sourceId}`}
+          className="mt-5 ml-4 inline-block text-sm text-ink"
+        >
+          Open source checkpoint ↗
+        </Link>
+      )}
       {current.answer && (
         <div className="mt-6">
           <button
@@ -111,7 +119,7 @@ export default function ReviewQueue({
             {revealed ? 'Hide answer' : 'Reveal answer'}
           </button>
           {revealed && (
-            <p className="mt-4 rounded-xl border border-line bg-canvas/60 p-4 leading-7 text-ink-soft">
+            <p className="mt-4 border-l-2 border-line pl-4 leading-7 text-ink-soft">
               {current.answer}
             </p>
           )}

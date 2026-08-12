@@ -15,7 +15,16 @@ describe('catalog', () => {
     expect(topics).toHaveLength(13);
     expect(lessons).toHaveLength(17);
     expect(learningPaths).toHaveLength(27);
-    expect(assessments).toHaveLength(17);
+    expect(assessments).toHaveLength(57);
+    expect(
+      assessments.filter((assessment) => assessment.scope?.kind === 'lesson'),
+    ).toHaveLength(17);
+    expect(
+      assessments.filter((assessment) => assessment.scope?.kind === 'topic'),
+    ).toHaveLength(13);
+    expect(
+      assessments.filter((assessment) => assessment.scope?.kind === 'path'),
+    ).toHaveLength(27);
     expect(validateCatalog()).toEqual([]);
   });
 
@@ -30,6 +39,24 @@ describe('catalog', () => {
       expect(
         resources.every((resource) => resource.url.startsWith('https://')),
       ).toBe(true);
+    }
+  });
+
+  it('gives each concept lesson a complete dedicated visual narrative', () => {
+    const conceptLessons = lessons.filter(
+      (lesson) => lesson.visualization === 'concept-flow',
+    );
+    expect(conceptLessons).toHaveLength(11);
+    expect(
+      new Set(conceptLessons.map((lesson) => lesson.conceptFlow?.scene)).size,
+    ).toBe(11);
+    for (const lesson of conceptLessons) {
+      const steps = lesson.conceptFlow!.steps;
+      expect(steps[0].phase).toBe('initial');
+      expect(steps.some((step) => step.phase === 'failure')).toBe(true);
+      expect(steps.some((step) => step.phase === 'recovery')).toBe(true);
+      expect(steps.at(-1)?.phase).toBe('terminal');
+      expect(lesson.conceptFlow?.terminalSummary).toBeTruthy();
     }
   });
 

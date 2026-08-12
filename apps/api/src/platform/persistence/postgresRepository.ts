@@ -190,33 +190,46 @@ export class PostgresLearningRepository implements LearningRepository {
           attempt.createdAt,
         ],
       );
-      await client.query(
-        `INSERT INTO lesson_progress
+      if (input.updatesLessonProgress !== false)
+        await client.query(
+          `INSERT INTO lesson_progress
           (profile_id, lesson_slug, status, percent, started_at, completed_at, updated_at)
          VALUES ($1, $2, 'completed', 100, $3, $3, $3)
          ON CONFLICT (profile_id, lesson_slug) DO UPDATE SET
            status = 'completed', percent = 100,
            completed_at = EXCLUDED.completed_at, updated_at = EXCLUDED.updated_at`,
-        [PROFILE_ID, attempt.lessonSlug, attempt.createdAt],
-      );
+          [PROFILE_ID, attempt.lessonSlug, attempt.createdAt],
+        );
       for (const evidence of input.evidence) {
         const delta = evidence.correct ? 0.18 : -0.22;
-        await client.query(
-          `INSERT INTO concept_mastery (profile_id, concept_id, score, evidence_count)
+        if (input.updatesMastery !== false)
+          await client.query(
+            `INSERT INTO concept_mastery (profile_id, concept_id, score, evidence_count)
            VALUES ($1, $2, $3, 1)
            ON CONFLICT (profile_id, concept_id) DO UPDATE SET
              score = LEAST(1, GREATEST(0, concept_mastery.score + $4)),
              evidence_count = concept_mastery.evidence_count + 1,
              updated_at = now()`,
-          [PROFILE_ID, evidence.conceptId, evidence.correct ? delta : 0, delta],
-        );
+            [
+              PROFILE_ID,
+              evidence.conceptId,
+              evidence.correct ? delta : 0,
+              delta,
+            ],
+          );
         const dueDays = evidence.correct ? 3 : 1;
         await client.query(
           `INSERT INTO review_state
-            (profile_id, concept_id, lesson_slug, interval_days, due_at, lapses)
-           VALUES ($1, $2, $3, $4, now() + make_interval(days => $4), $5)
+            (profile_id, concept_id, lesson_slug, interval_days, due_at, lapses,
+             source_type, source_id, title, prompt, answer)
+           VALUES ($1, $2, $3, $4, now() + make_interval(days => $4), $5, $6, $7, $8, $9, $10)
            ON CONFLICT (profile_id, concept_id) DO UPDATE SET
              lesson_slug = EXCLUDED.lesson_slug,
+             source_type = EXCLUDED.source_type,
+             source_id = EXCLUDED.source_id,
+             title = EXCLUDED.title,
+             prompt = EXCLUDED.prompt,
+             answer = EXCLUDED.answer,
              repetitions = CASE WHEN $5 = 1 THEN 0 ELSE review_state.repetitions END,
              lapses = review_state.lapses + $5,
              due_at = CASE WHEN $5 = 1 THEN EXCLUDED.due_at ELSE LEAST(review_state.due_at, EXCLUDED.due_at) END,
@@ -227,6 +240,11 @@ export class PostgresLearningRepository implements LearningRepository {
             evidence.lessonSlug,
             dueDays,
             evidence.correct ? 0 : 1,
+            evidence.sourceType ?? 'lesson',
+            evidence.sourceId ?? null,
+            evidence.title ?? null,
+            evidence.prompt ?? null,
+            evidence.answer ?? null,
           ],
         );
       }

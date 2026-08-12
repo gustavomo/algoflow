@@ -12,6 +12,7 @@ export type BubbleSortPhase =
 
 export interface BubbleSortSnapshot {
   phase: BubbleSortPhase;
+  stage: 'initial' | 'transition' | 'terminal';
   items: SortItem[];
   compared: [number, number] | null;
   swapped: boolean;
@@ -77,6 +78,7 @@ export function createBubbleSortSteps(values: number[]): BubbleSortSnapshot[] {
   steps.push(
     snapshot(items, {
       phase: 'ready',
+      stage: 'initial',
       compared: null,
       swapped: false,
       pass: 0,
@@ -97,6 +99,7 @@ export function createBubbleSortSteps(values: number[]): BubbleSortSnapshot[] {
       steps.push(
         snapshot(items, {
           phase: 'compare',
+          stage: 'transition',
           compared: [index, index + 1],
           swapped: false,
           pass: pass + 1,
@@ -113,6 +116,7 @@ export function createBubbleSortSteps(values: number[]): BubbleSortSnapshot[] {
         steps.push(
           snapshot(items, {
             phase: 'swap',
+            stage: 'transition',
             compared: [index, index + 1],
             swapped: true,
             pass: pass + 1,
@@ -126,6 +130,7 @@ export function createBubbleSortSteps(values: number[]): BubbleSortSnapshot[] {
       steps.push(
         snapshot(items, {
           phase: 'settle',
+          stage: 'transition',
           compared: [index, index + 1],
           swapped: left > right,
           pass: pass + 1,
@@ -140,6 +145,7 @@ export function createBubbleSortSteps(values: number[]): BubbleSortSnapshot[] {
     steps.push(
       snapshot(items, {
         phase: 'settle',
+        stage: 'transition',
         compared: null,
         swapped: swappedInPass,
         pass: pass + 1,
@@ -155,6 +161,7 @@ export function createBubbleSortSteps(values: number[]): BubbleSortSnapshot[] {
   steps.push(
     snapshot(items, {
       phase: 'complete',
+      stage: 'terminal',
       compared: null,
       swapped: false,
       pass: Math.max(1, items.length - 1),

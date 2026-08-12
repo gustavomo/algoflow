@@ -9,8 +9,13 @@ import type {
   LessonDefinition,
   PathModuleDefinition,
   TopicDefinition,
+  VisualSceneKind,
 } from '@algoflow/contracts';
 import { isLearningResource } from '@algoflow/contracts';
+import {
+  buildAssessmentCatalog,
+  validateMasteryCoverage,
+} from './masteryCatalog';
 
 export const tracks: LearningTrackDefinition[] = [
   {
@@ -243,20 +248,80 @@ export const topics: TopicDefinition[] = [
   },
 ];
 
-function conceptFlow(labels: string[], metric: string): ConceptFlowNarrative {
+function conceptFlow(
+  scene: VisualSceneKind,
+  labels: string[],
+  metric: string,
+  failureNarration: string,
+  recoveryNarration: string,
+  terminalSummary: string,
+): ConceptFlowNarrative {
+  const ids = labels.map((_, index) => `node-${index + 1}`);
   return {
+    version: 1,
+    scene,
     nodes: labels.map((label, index) => ({ id: `node-${index + 1}`, label })),
     connections: labels.slice(1).map((_, index) => ({
       from: `node-${index + 1}`,
       to: `node-${index + 2}`,
     })),
-    steps: labels.map((label, index) => ({
-      label: `Step ${index + 1}`,
-      narration: `${label} becomes the active part of the model. Connect it to the previous step before continuing.`,
-      metric,
-      activeNodeIds: [`node-${index + 1}`],
-      activeConnectionIndexes: index === 0 ? [] : [index - 1],
-    })),
+    steps: [
+      {
+        id: 'initial',
+        phase: 'initial',
+        label: `Start with ${labels[0]}`,
+        narration: `${labels[0]} establishes the first boundary in the model.`,
+        metric,
+        activeNodeIds: [ids[0]],
+        completedNodeIds: [],
+        activeConnectionIndexes: [],
+      },
+      ...labels.slice(1).map((label, offset) => {
+        const index = offset + 1;
+        return {
+          id: `transition-${index}`,
+          phase: 'transition' as const,
+          label: `Connect ${label}`,
+          narration: `${label} joins the model through an explicit responsibility and connection.`,
+          metric,
+          activeNodeIds: [ids[index]],
+          completedNodeIds: ids.slice(0, index),
+          activeConnectionIndexes: [index - 1],
+        };
+      }),
+      {
+        id: 'failure',
+        phase: 'failure',
+        label: 'Inspect the failure boundary',
+        narration: failureNarration,
+        metric,
+        activeNodeIds: [],
+        completedNodeIds: ids.slice(0, -1),
+        failedNodeIds: [ids.at(-1)!],
+        activeConnectionIndexes: [Math.max(0, labels.length - 2)],
+      },
+      {
+        id: 'recovery',
+        phase: 'recovery',
+        label: 'Restore the invariant',
+        narration: recoveryNarration,
+        metric,
+        activeNodeIds: [ids.at(-1)!],
+        completedNodeIds: ids.slice(0, -1),
+        activeConnectionIndexes: [Math.max(0, labels.length - 2)],
+      },
+      {
+        id: 'terminal',
+        phase: 'terminal',
+        label: 'Complete causal model',
+        narration: terminalSummary,
+        metric,
+        activeNodeIds: [],
+        completedNodeIds: ids,
+        activeConnectionIndexes: labels.slice(1).map((_, index) => index),
+      },
+    ],
+    terminalSummary,
   };
 }
 
@@ -363,8 +428,12 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 18,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'system-boundaries',
       ['User interface', 'Application service', 'Data store', 'Observability'],
       'One request, four responsibilities',
+      'Without operational feedback, a request can fail after the data boundary while the team sees only a vague symptom.',
+      'Observability closes the feedback loop by connecting behavior, evidence, and the responsible boundary.',
+      'The system is complete when the user action, service contract, durable state, and operational feedback form one inspectable loop.',
     ),
     assessmentSlug: 'software-systems-checkpoint',
     prerequisites: [],
@@ -382,8 +451,12 @@ export const lessons: LessonDefinition[] = [
     visualization: 'concept-flow',
     codeLanguage: 'javascript',
     conceptFlow: conceptFlow(
+      'event-loop',
       ['Call stack', 'Web API', 'Task queue', 'Event loop'],
       'Run-to-completion',
+      'A queued callback cannot enter a busy call stack; treating registration as immediate execution predicts the wrong order.',
+      'The event loop waits for run-to-completion, then moves the oldest eligible task onto the empty stack.',
+      'The execution model is complete when synchronous stack work finishes before queued asynchronous callbacks re-enter JavaScript.',
     ),
     assessmentSlug: 'javascript-runtime-checkpoint',
     prerequisites: [],
@@ -400,8 +473,12 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 22,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'cdn-route',
       ['Client', 'DNS', 'CDN edge', 'Origin'],
       'Latency falls near the user',
+      'A cache miss at the edge cannot produce content locally and must cross the longer path to the origin.',
+      'The origin response fills the edge cache so the next equivalent request terminates near the client.',
+      'The route is complete when DNS selects the edge, hits terminate locally, and misses visibly fall back to the origin.',
     ),
     assessmentSlug: 'request-cdn-checkpoint',
     prerequisites: [],
@@ -419,8 +496,12 @@ export const lessons: LessonDefinition[] = [
     visualization: 'concept-flow',
     codeLanguage: 'sql',
     conceptFlow: conceptFlow(
+      'relational-schema',
       ['Entity', 'Primary key', 'Relationship', 'Constraint'],
       'Integrity before convenience',
+      'A relationship without an enforced constraint permits an orphan reference that the model claims cannot exist.',
+      'A foreign-key constraint rejects the invalid transition and restores referential integrity.',
+      'The model is complete when identity, relationships, and constraints make invalid states unrepresentable at the database boundary.',
     ),
     assessmentSlug: 'relational-modeling-checkpoint',
     prerequisites: [],
@@ -437,8 +518,12 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 18,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'container-layers',
       ['Source', 'Image layers', 'Container', 'Runtime boundary'],
       'Build once, run consistently',
+      'Mutating a running container as if it were the image creates drift that cannot be reproduced from source.',
+      'Rebuild immutable layers and recreate the container so runtime state returns to the declared artifact.',
+      'The lifecycle is complete when source produces immutable layers and the disposable runtime remains inside an explicit boundary.',
     ),
     assessmentSlug: 'containers-images-checkpoint',
     prerequisites: [],
@@ -456,8 +541,12 @@ export const lessons: LessonDefinition[] = [
     visualization: 'concept-flow',
     codeLanguage: 'python',
     conceptFlow: conceptFlow(
+      'vector-space',
       ['Features', 'Vector', 'Transformation', 'Similarity'],
       'Geometry becomes computation',
+      'Comparing unscaled features lets one large numeric dimension dominate distance regardless of meaning.',
+      'A deliberate transformation restores comparable geometry before similarity is measured.',
+      'The model is complete when features become coordinates, transformations preserve the intended signal, and similarity has geometric meaning.',
     ),
     assessmentSlug: 'vectors-ml-checkpoint',
     prerequisites: [],
@@ -474,8 +563,12 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 24,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'agent-loop',
       ['Goal', 'Model decision', 'Tool call', 'Observation', 'Evaluation'],
       'Bounded autonomy with evidence',
+      'A tool call without a trustworthy observation leaves the next model decision ungrounded and the loop can repeat a bad action.',
+      'Return bounded tool evidence to state and let evaluation decide whether to continue, recover, or stop.',
+      'The agent loop is complete when every action returns evidence and evaluation enforces the goal, permissions, and stopping condition.',
     ),
     assessmentSlug: 'agent-loop-checkpoint',
     prerequisites: [],
@@ -492,8 +585,12 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 18,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'active-reading',
       ['Preview', 'Question', 'Read', 'Recall', 'Apply'],
       'Reading produces evidence',
+      'Passive rereading feels fluent but produces no evidence that the model can be reconstructed without the page.',
+      'Close the material, recall the answer, inspect the gap, and apply the idea to a new example.',
+      'The reading cycle is complete when a chapter becomes retrievable questions, a reconstructed model, and an independent application.',
     ),
     assessmentSlug: 'technical-reading-checkpoint',
     prerequisites: [],
@@ -510,6 +607,7 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 24,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'impact-ripple',
       [
         'Business context',
         'Problem selection',
@@ -517,6 +615,9 @@ export const lessons: LessonDefinition[] = [
         'Durable impact',
       ],
       'Scope grows through leverage',
+      'Choosing a visible but low-consequence project expands activity without changing an important business or organizational constraint.',
+      'Return to business context, select the highest-leverage problem, and build a system that other teams can sustain.',
+      'Staff impact is complete when judgment changes a consequential boundary and the improvement remains useful without permanent heroics.',
     ),
     assessmentSlug: 'staff-role-impact-checkpoint',
     prerequisites: [],
@@ -533,8 +634,12 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 28,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'strategy-map',
       ['Diagnosis', 'Guiding policy', 'Coherent actions', 'Success signals'],
       'Direction before projects',
+      'A project list without a diagnosis or guiding policy produces competing actions and no falsifiable direction.',
+      'Reconnect actions to one diagnosis, constrain them with policy, and define signals that can disprove the approach.',
+      'Technical strategy is complete when diagnosis, policy, coherent actions, and success signals reinforce one directional choice.',
     ),
     assessmentSlug: 'technical-strategy-checkpoint',
     prerequisites: ['staff-role-and-impact'],
@@ -551,6 +656,7 @@ export const lessons: LessonDefinition[] = [
     estimatedMinutes: 30,
     visualization: 'concept-flow',
     conceptFlow: conceptFlow(
+      'migration-timeline',
       [
         'Shared problem',
         'Incremental plan',
@@ -559,6 +665,9 @@ export const lessons: LessonDefinition[] = [
         'Learning',
       ],
       'Change is a sociotechnical system',
+      'A cutover without a validated gate or explicit owner creates an irreversible technical and organizational failure boundary.',
+      'Stop the cutover, exercise rollback, resolve the failed gate, and resume only from verified shared state.',
+      'The migration is complete when staged ownership, validation, reversible cutover, and captured learning close the change loop.',
     ),
     assessmentSlug: 'cross-team-change-checkpoint',
     prerequisites: ['technical-strategy'],
@@ -633,6 +742,18 @@ function path(input: {
       ...(resources[index] ? [resources[index]] : []),
     ],
   }));
+  const sceneByTrack: Record<string, VisualSceneKind> = {
+    algorithms: 'pointer-search',
+    'engineering-foundations': 'system-boundaries',
+    languages: 'event-loop',
+    'software-architecture': 'strategy-map',
+    data: 'relational-schema',
+    'cloud-platform': 'container-layers',
+    'ai-foundations': 'vector-space',
+    'ai-engineering': 'agent-loop',
+    'communication-learning': 'active-reading',
+    'technical-leadership': 'impact-ripple',
+  };
   return {
     ...definition,
     level: input.level ?? 'foundation',
@@ -645,6 +766,14 @@ function path(input: {
       (total, pathModule) => total + pathModule.estimatedMinutes,
       0,
     ),
+    assessmentSlug: `${input.slug}-diagnostic`,
+    visualBlueprint: {
+      version: 1,
+      scene: sceneByTrack[input.trackSlug] ?? 'strategy-map',
+      objective: input.outcomes.join('; '),
+      terminalEvidence:
+        'Demonstrate the outcomes on an unfamiliar problem after every planned teaching module becomes available.',
+    },
   };
 }
 
@@ -2453,7 +2582,7 @@ function starterAssessment(input: {
   };
 }
 
-export const assessments: AssessmentDefinition[] = [
+export const legacyAssessments: AssessmentDefinition[] = [
   ...existingAssessments,
   starterAssessment({
     slug: 'software-systems-checkpoint',
@@ -2624,6 +2753,15 @@ export const assessments: AssessmentDefinition[] = [
   }),
 ];
 
+export const assessments: AssessmentDefinition[] = buildAssessmentCatalog(
+  lessons,
+  topics,
+  learningPaths,
+);
+
+for (const topic of topics)
+  topic.assessmentSlug = `${topic.slug}-topic-checkpoint`;
+
 export const lessonBySlug = new Map(
   lessons.map((lesson) => [lesson.slug, lesson]),
 );
@@ -2709,8 +2847,24 @@ export function validateCatalog() {
       errors.push(
         `${lesson.slug}: unknown assessment ${lesson.assessmentSlug}`,
       );
+    else if (
+      assessmentBySlug.get(lesson.assessmentSlug)?.scope?.kind !== 'lesson' ||
+      assessmentBySlug.get(lesson.assessmentSlug)?.scope?.slug !== lesson.slug
+    )
+      errors.push(`${lesson.slug}: mismatched lesson assessment scope`);
     if (lesson.visualization === 'concept-flow' && !lesson.conceptFlow)
       errors.push(`${lesson.slug}: missing concept flow`);
+    if (lesson.conceptFlow) {
+      const steps = lesson.conceptFlow.steps;
+      if (
+        lesson.conceptFlow.version !== 1 ||
+        steps[0]?.phase !== 'initial' ||
+        steps.at(-1)?.phase !== 'terminal' ||
+        steps.filter((step) => step.phase === 'initial').length !== 1 ||
+        steps.filter((step) => step.phase === 'terminal').length !== 1
+      )
+        errors.push(`${lesson.slug}: incomplete visual narrative`);
+    }
     for (const prerequisite of lesson.prerequisites)
       if (!lessonBySlug.has(prerequisite))
         errors.push(`${lesson.slug}: unknown prerequisite ${prerequisite}`);
@@ -2737,12 +2891,33 @@ export function validateCatalog() {
         errors.push(`${item.slug}: invalid practice link ${pathModule.href}`);
     if (hasPathCycle(item.slug))
       errors.push(`${item.slug}: cyclic path prerequisite`);
+    if (
+      !item.assessmentSlug ||
+      assessmentBySlug.get(item.assessmentSlug)?.scope?.kind !== 'path' ||
+      assessmentBySlug.get(item.assessmentSlug)?.scope?.slug !== item.slug
+    )
+      errors.push(`${item.slug}: missing path diagnostic scope`);
   }
-  for (const assessment of assessments)
-    if (!lessonBySlug.has(assessment.lessonSlug))
-      errors.push(
-        `${assessment.slug}: unknown lesson ${assessment.lessonSlug}`,
-      );
+  for (const topic of topics)
+    if (
+      !topic.assessmentSlug ||
+      assessmentBySlug.get(topic.assessmentSlug)?.scope?.kind !== 'topic' ||
+      assessmentBySlug.get(topic.assessmentSlug)?.scope?.slug !== topic.slug
+    )
+      errors.push(`${topic.slug}: missing topic checkpoint scope`);
+  for (const assessment of assessments) {
+    const scope = assessment.scope;
+    if (!scope) errors.push(`${assessment.slug}: missing assessment scope`);
+    else if (scope.kind === 'lesson' && !lessonBySlug.has(scope.slug))
+      errors.push(`${assessment.slug}: unknown lesson ${scope.slug}`);
+    else if (scope.kind === 'topic' && !topicBySlug.has(scope.slug))
+      errors.push(`${assessment.slug}: unknown topic ${scope.slug}`);
+    else if (scope.kind === 'path' && !pathBySlug.has(scope.slug))
+      errors.push(`${assessment.slug}: unknown path ${scope.slug}`);
+  }
+  errors.push(
+    ...validateMasteryCoverage(lessons, topics, learningPaths, assessments),
+  );
   return Array.from(new Set(errors));
 }
 

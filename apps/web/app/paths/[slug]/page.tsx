@@ -54,14 +54,14 @@ export default async function PathPage({
         />
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <div className="panel p-5">
+      <div className="mt-8 grid border-y border-line sm:grid-cols-3 sm:divide-x sm:divide-line">
+        <div className="py-5 sm:px-5 sm:first:pl-0">
           <p className="eyebrow">Available progress</p>
           <p className="mt-2 text-2xl font-semibold">
             {done}/{path.lessonSlugs.length}
           </p>
         </div>
-        <div className="panel p-5">
+        <div className="border-t border-line py-5 sm:border-t-0 sm:px-5">
           <p className="eyebrow">Practice · planned</p>
           <p className="mt-2 text-2xl font-semibold">
             {
@@ -75,7 +75,7 @@ export default async function PathPage({
             }
           </p>
         </div>
-        <div className="panel p-5">
+        <div className="border-t border-line py-5 sm:border-t-0 sm:px-5">
           <p className="eyebrow">Estimated effort</p>
           <p className="mt-2 text-2xl font-semibold">
             {Math.round(path.estimatedMinutes / 60)}h
@@ -83,7 +83,7 @@ export default async function PathPage({
         </div>
       </div>
 
-      <section className="mt-10 rounded-2xl border border-line bg-surface p-6">
+      <section className="mt-10 border-y border-line py-6">
         <h2 className="font-semibold">You will be able to</h2>
         <ul className="mt-4 grid gap-3 text-sm text-muted sm:grid-cols-2">
           {path.outcomes.map((outcome) => (
@@ -100,7 +100,7 @@ export default async function PathPage({
         )}
       </section>
 
-      <div className="mt-10 space-y-4">
+      <div className="mt-10 border-y border-line">
         {path.modules.map((module, index) => {
           const lesson =
             module.status === 'available'
@@ -114,7 +114,7 @@ export default async function PathPage({
           return (
             <div
               key={module.id}
-              className="grid gap-4 rounded-2xl border border-line bg-surface p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+              className="grid gap-4 border-b border-line py-6 last:border-b-0 sm:grid-cols-[auto_1fr_auto] sm:items-center"
             >
               <span
                 className={`grid h-10 w-10 place-items-center rounded-full border font-mono text-xs ${complete ? 'border-success/40 bg-success-muted text-success' : 'border-line text-subtle'}`}
@@ -139,7 +139,7 @@ export default async function PathPage({
                         href={resource.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-full border border-line px-3 py-1 text-xs text-subtle transition hover:border-line-strong hover:text-ink"
+                        className="border-b border-line py-1 text-xs text-subtle transition hover:border-ink hover:text-ink"
                       >
                         {resource.provider} · {resource.title} ↗
                       </a>
@@ -170,6 +170,29 @@ export default async function PathPage({
           );
         })}
       </div>
+      {path.assessmentSlug && (
+        <section className="mt-12 grid gap-5 border-y border-warning/50 py-7 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div>
+            <p className="eyebrow text-warning">
+              Readiness diagnostic · not completion
+            </p>
+            <h2 className="mt-3 text-xl font-semibold">
+              Map what transfers before the full roadmap exists.
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-subtle">
+              This path still contains planned teaching modules. The diagnostic
+              identifies prerequisites and gaps; it cannot mark the path
+              mastered.
+            </p>
+          </div>
+          <Link
+            href={`/assessments/${path.assessmentSlug}`}
+            className="button-secondary px-5 py-3 text-center text-sm"
+          >
+            Map readiness →
+          </Link>
+        </section>
+      )}
     </AppShell>
   );
 }

@@ -71,15 +71,17 @@ export class MemoryLearningRepository implements LearningRepository {
   async recordAssessment(input: RecordedAssessment) {
     const state = getState();
     state.attempts.push(input.attempt);
-    const existingProgress = state.progress.get(input.attempt.lessonSlug);
-    state.progress.set(input.attempt.lessonSlug, {
-      lessonSlug: input.attempt.lessonSlug,
-      status: 'completed',
-      percent: 100,
-      startedAt: existingProgress?.startedAt ?? input.attempt.createdAt,
-      completedAt: input.attempt.createdAt,
-      updatedAt: input.attempt.createdAt,
-    });
+    if (input.updatesLessonProgress !== false) {
+      const existingProgress = state.progress.get(input.attempt.lessonSlug);
+      state.progress.set(input.attempt.lessonSlug, {
+        lessonSlug: input.attempt.lessonSlug,
+        status: 'completed',
+        percent: 100,
+        startedAt: existingProgress?.startedAt ?? input.attempt.createdAt,
+        completedAt: input.attempt.createdAt,
+        updatedAt: input.attempt.createdAt,
+      });
+    }
     for (const evidence of input.evidence) {
       const current = state.reviews.get(evidence.conceptId);
       const dueAt = new Date(
@@ -92,6 +94,11 @@ export class MemoryLearningRepository implements LearningRepository {
           evidence.lessonSlug,
           new Date(input.attempt.createdAt),
         );
+        review.sourceType = evidence.sourceType ?? 'lesson';
+        review.sourceId = evidence.sourceId;
+        review.title = evidence.title;
+        review.prompt = evidence.prompt;
+        review.answer = evidence.answer;
         review.dueAt = dueAt;
         review.lapses = evidence.correct ? 0 : 1;
         state.reviews.set(evidence.conceptId, review);

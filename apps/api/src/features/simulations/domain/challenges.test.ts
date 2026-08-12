@@ -2,6 +2,7 @@ import type { SystemDesignGraph } from '@algoflow/contracts';
 import { describe, expect, it } from 'vitest';
 import { scenarioBySlug, systemDesignScenarios } from './scenarios';
 import {
+  getDesignChallengeCatalog,
   getChallengeForScenario,
   runDesignChallenge,
   validateDesignChallengeCatalog,
@@ -10,6 +11,29 @@ import {
 describe('design challenges', () => {
   it('keeps every definition solvable against a real scenario and phase', () => {
     expect(validateDesignChallengeCatalog(systemDesignScenarios)).toEqual([]);
+    expect(getDesignChallengeCatalog()).toHaveLength(
+      systemDesignScenarios.length,
+    );
+    expect(
+      systemDesignScenarios.every((scenario) =>
+        Boolean(getChallengeForScenario(scenario.slug)),
+      ),
+    ).toBe(true);
+    for (const scenario of systemDesignScenarios) {
+      const definition = getChallengeForScenario(scenario.slug)!;
+      const result = runDesignChallenge({
+        scenarioSlug: scenario.slug,
+        challengeId: definition.id,
+        graph: scenario.initialGraph,
+        phaseId: definition.phaseId,
+        loadProfile: definition.loadProfiles[0],
+        failure: definition.failures[0],
+        prediction: definition.predictionOptions[0],
+      });
+      expect(result.error, scenario.slug).toBeUndefined();
+      expect(result.value?.steps[0].phase, scenario.slug).toBe('initial');
+      expect(result.value?.steps.at(-1)?.phase, scenario.slug).toBe('terminal');
+    }
   });
 
   it('models the initial URL shortener bottleneck without fake precision', () => {
