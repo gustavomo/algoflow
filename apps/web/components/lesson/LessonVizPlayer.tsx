@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMachine } from '@xstate/react';
 import type {
   ConceptFlowNarrative,
+  RuntimeScene,
   VisualizationKind,
 } from '@algoflow/contracts';
 import { createBubbleSortSteps } from '../../lib/algorithms/bubbleSort';
@@ -20,16 +21,19 @@ import ConceptFlowViz from '../animation/ConceptFlowViz';
 import ComplexityViz from '../animation/ComplexityViz';
 import GridTraversalViz from '../animation/GridTraversalViz';
 import PlaybackBar from '../animation/PlaybackBar';
+import RuntimeSceneViz from '../animation/RuntimeSceneViz';
 import TwoPointersViz from '../animation/TwoPointersViz';
 
 export default function LessonVizPlayer({
   slug,
   visualization: visualizationKind,
   conceptFlow,
+  runtimeScene,
 }: {
   slug: string;
   visualization: VisualizationKind;
   conceptFlow?: ConceptFlowNarrative;
+  runtimeScene?: RuntimeScene;
 }) {
   const [state, send] = useMachine(playbackMachine);
   const [bubbleMode, setBubbleMode] = useState<'challenge' | 'review'>(
@@ -48,12 +52,17 @@ export default function LessonVizPlayer({
       return createGridTraversalSteps('dfs');
     if (visualizationKind === 'concept-flow' && conceptFlow)
       return conceptFlow.steps;
+    if (visualizationKind === 'runtime-scene' && runtimeScene)
+      return runtimeScene.steps;
     return createComplexitySteps();
-  }, [conceptFlow, visualizationKind]);
+  }, [conceptFlow, runtimeScene, visualizationKind]);
 
   useEffect(() => {
     send({ type: 'SETUP', totalSteps: sequence.length });
-  }, [send, sequence.length, slug]);
+    // Narrated runtime steps need reading time: start them at the 0.5× preset.
+    if (visualizationKind === 'runtime-scene')
+      send({ type: 'SPEED', speedMs: 1200 });
+  }, [send, sequence.length, slug, visualizationKind]);
   useEffect(() => {
     if (visualizationKind === 'bubble-sort' && bubbleMode === 'challenge')
       return;
@@ -123,6 +132,19 @@ export default function LessonVizPlayer({
       />
     );
   }
+
+  if (visualizationKind === 'runtime-scene')
+    visualization = runtimeScene ? (
+      <RuntimeSceneViz
+        scene={runtimeScene}
+        step={sequence[index] as RuntimeScene['steps'][number]}
+        stepIndex={index}
+      />
+    ) : (
+      <p className="border-y border-line py-10 text-center text-sm text-subtle">
+        This lesson&apos;s runtime scene is unavailable.
+      </p>
+    );
 
   if (visualizationKind === 'bubble-sort')
     return (

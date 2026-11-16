@@ -23,6 +23,8 @@
   --color-success-muted: 20 43 29;
   --color-warning-muted: 50 42 10;
   --color-danger-muted: 52 23 30;
+  --color-scene-orange: 253 186 116;
+  --color-scene-teal: 94 234 212;
 }
 
 * {

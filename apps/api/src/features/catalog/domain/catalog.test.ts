@@ -7,6 +7,7 @@ import {
   tracks,
   validateCatalog,
   validateLearningPathResources,
+  validateRuntimeScene,
 } from './catalog';
 
 describe('catalog', () => {
@@ -46,7 +47,7 @@ describe('catalog', () => {
     const conceptLessons = lessons.filter(
       (lesson) => lesson.visualization === 'concept-flow',
     );
-    expect(conceptLessons).toHaveLength(18);
+    expect(conceptLessons).toHaveLength(17);
     expect(
       new Set(conceptLessons.map((lesson) => lesson.conceptFlow?.scene)).size,
     ).toBe(11);
@@ -58,6 +59,40 @@ describe('catalog', () => {
       expect(steps.at(-1)?.phase).toBe('terminal');
       expect(lesson.conceptFlow?.terminalSummary).toBeTruthy();
     }
+  });
+
+  it('drives the JavaScript execution model with a valid runtime scene', () => {
+    const lesson = lessons.find(
+      (item) => item.slug === 'javascript-execution-model',
+    );
+    expect(lesson?.visualization).toBe('runtime-scene');
+    const scene = lesson!.runtimeScene!;
+    expect(scene.steps.length).toBeGreaterThanOrEqual(9);
+    expect(scene.steps.length).toBeLessThanOrEqual(11);
+    expect(scene.steps.at(-1)?.output).toEqual([
+      'Start',
+      'End',
+      'Promise',
+      'Timeout',
+    ]);
+    expect(validateRuntimeScene(lesson!.slug, scene)).toEqual([]);
+  });
+
+  it('rejects runtime scenes with bad lines, duplicate tokens, or unknown regions', () => {
+    const scene = structuredClone(
+      lessons.find((item) => item.slug === 'javascript-execution-model')!
+        .runtimeScene!,
+    );
+    scene.steps[0].codeLines = [scene.code.lines.length];
+    scene.steps[1].tokens.push({ ...scene.steps[1].tokens[0] });
+    scene.steps[2].tokens[0].regionId = 'heap';
+    scene.steps[3].activeRegionIds = ['nowhere'];
+
+    const errors = validateRuntimeScene('demo', scene).join(' ');
+    expect(errors).toMatch(/runtime step 1 code line 4 out of range/);
+    expect(errors).toMatch(/runtime step 2 duplicate token script/);
+    expect(errors).toMatch(/runtime step 3 unknown region heap/);
+    expect(errors).toMatch(/runtime step 4 unknown region nowhere/);
   });
 
   it('rejects malformed, insecure, and duplicate resource metadata', () => {

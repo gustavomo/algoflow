@@ -86,6 +86,7 @@ export default async function LessonPage({
             slug={lesson.slug}
             visualization={lesson.visualization}
             conceptFlow={lesson.conceptFlow}
+            runtimeScene={lesson.runtimeScene}
           />
         </section>
       </div>

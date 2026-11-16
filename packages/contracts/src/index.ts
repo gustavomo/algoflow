@@ -102,7 +102,8 @@ export type VisualizationKind =
   | 'sliding-window'
   | 'bfs-grid'
   | 'dfs-grid'
-  | 'concept-flow';
+  | 'concept-flow'
+  | 'runtime-scene';
 
 export const VISUAL_SCENE_KINDS = [
   'growth-curves',
@@ -166,6 +167,48 @@ export interface ConceptFlowNarrative {
   terminalSummary: string;
 }
 
+export type RuntimeSceneRegionKind = 'stack' | 'queue' | 'box' | 'console';
+export type RuntimeSceneRegionTone =
+  | 'green'
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'teal';
+export type RuntimeSceneTokenTone = 'ok' | 'error' | 'muted';
+
+export interface RuntimeSceneRegion {
+  id: string;
+  label: string;
+  kind: RuntimeSceneRegionKind;
+  tone: RuntimeSceneRegionTone;
+}
+
+export interface RuntimeSceneToken {
+  id: string;
+  label: string;
+  regionId: string;
+  tone?: RuntimeSceneTokenTone;
+}
+
+/** A full snapshot of the runtime, so seeking to any step is a direct lookup. */
+export interface RuntimeSceneStep {
+  label: string;
+  narration: string;
+  /** Zero-based indexes into `code.lines`. */
+  codeLines: number[];
+  tokens: RuntimeSceneToken[];
+  output: string[];
+  activeRegionIds?: string[];
+  /** 'checking' animates the event-loop indicator while it inspects the queues. */
+  eventLoop?: 'idle' | 'checking';
+}
+
+export interface RuntimeScene {
+  code: { language: string; lines: string[] };
+  regions: RuntimeSceneRegion[];
+  steps: RuntimeSceneStep[];
+}
+
 export interface VisualBlueprint {
   version: 1;
   scene: VisualSceneKind;
@@ -192,6 +235,7 @@ export interface LessonDefinition {
   estimatedMinutes: number;
   visualization: VisualizationKind;
   conceptFlow?: ConceptFlowNarrative;
+  runtimeScene?: RuntimeScene;
   codeLanguage?: 'javascript' | 'typescript' | 'go' | 'sql' | 'python';
   assessmentSlug: string;
   prerequisites: string[];
