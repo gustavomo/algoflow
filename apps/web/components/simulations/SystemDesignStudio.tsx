@@ -83,6 +83,9 @@ export default function SystemDesignStudio({
     () => createSystemFlowSteps(scenario, graph, flowId),
     [flowId, graph, scenario],
   );
+  const flowTemplate = scenario.flows.find(
+    (candidate) => candidate.id === flowId,
+  );
   const currentStep =
     flow.steps[
       Math.min(state.context.stepIndex, Math.max(0, flow.steps.length - 1))
@@ -411,6 +414,10 @@ export default function SystemDesignStudio({
           connectingFrom={connectingFrom}
           activeNodeId={challengeStep?.nodeId ?? currentStep?.nodeId}
           activeEdgeId={challengeStep?.edgeId ?? currentStep?.edgeId}
+          activePhase={challengeStep?.phase ?? currentStep?.phase}
+          activeFlow={
+            challengeStep ? challengeResult?.primaryEffect : flowTemplate?.kind
+          }
           emphasizedNodeIds={[
             ...(challengeResult?.affectedNodeIds ?? []),
             ...tutorNodeIds,
