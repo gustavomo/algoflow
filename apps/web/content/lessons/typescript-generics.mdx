@@ -1,0 +1,82 @@
+Generics let one function or type work across many types while keeping the relationship between input and output. Without them you choose between duplication and `any`.
+
+<Hint>
+  A type parameter is a variable for a type. Read `T` as "whatever the caller
+  passed", and ask what the signature promises about it.
+</Hint>
+
+## Generic functions
+
+```ts
+function first<T>(items: T[]): T | undefined {
+  return items[0];
+}
+
+const n = first([1, 2, 3]); // number | undefined
+const s = first(['a', 'b']); // string | undefined
+```
+
+TypeScript infers `T` from the argument, so callers rarely write it explicitly.
+
+## Generic types
+
+```ts
+type ApiResponse<T> = { data: T; fetchedAt: Date };
+
+interface Repository<T> {
+  findById(id: string): Promise<T | undefined>;
+  save(entity: T): Promise<void>;
+}
+```
+
+## Constraints with extends
+
+A constraint says what a type parameter must at least have. Inside the function you may use only what the constraint guarantees.
+
+```ts
+function longest<T extends { length: number }>(a: T, b: T): T {
+  return a.length >= b.length ? a : b;
+}
+
+longest('apple', 'fig'); // 'apple'
+longest([1, 2], [1, 2, 3]); // [1, 2, 3]
+// longest(10, 20); // error: number has no 'length'
+```
+
+## keyof and indexed access
+
+`keyof T` is the union of a type's keys. Combined with a constraint, it lets the return type depend on which key the caller passed.
+
+```ts
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+
+const user = { id: 7, name: 'Ada' };
+const id = getProperty(user, 'id'); // number
+const name = getProperty(user, 'name'); // string
+// getProperty(user, 'email'); // error: not a key of user
+```
+
+## Utility types
+
+The standard library ships generic types built from these pieces.
+
+```ts
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+type UserPatch = Partial<User>; // every field optional
+type UserPreview = Pick<User, 'id' | 'name'>; // only id and name
+type UsersById = Record<number, User>; // map from id to User
+
+function createUser(name: string) {
+  return { id: Date.now(), name };
+}
+type Created = ReturnType<typeof createUser>; // { id: number; name: string }
+```
+
+Reach for a generic when two positions in a signature must agree. If nothing connects them, a plain union or overload is usually clearer.

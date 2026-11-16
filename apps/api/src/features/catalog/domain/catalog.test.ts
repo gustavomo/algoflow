@@ -12,19 +12,19 @@ import {
 describe('catalog', () => {
   it('contains the approved seed curriculum with valid references', () => {
     expect(tracks).toHaveLength(10);
-    expect(topics).toHaveLength(13);
-    expect(lessons).toHaveLength(17);
-    expect(learningPaths).toHaveLength(27);
-    expect(assessments).toHaveLength(57);
+    expect(topics).toHaveLength(16);
+    expect(lessons).toHaveLength(24);
+    expect(learningPaths).toHaveLength(28);
+    expect(assessments).toHaveLength(68);
     expect(
       assessments.filter((assessment) => assessment.scope?.kind === 'lesson'),
-    ).toHaveLength(17);
+    ).toHaveLength(24);
     expect(
       assessments.filter((assessment) => assessment.scope?.kind === 'topic'),
-    ).toHaveLength(13);
+    ).toHaveLength(16);
     expect(
       assessments.filter((assessment) => assessment.scope?.kind === 'path'),
-    ).toHaveLength(27);
+    ).toHaveLength(28);
     expect(validateCatalog()).toEqual([]);
   });
 
@@ -46,7 +46,7 @@ describe('catalog', () => {
     const conceptLessons = lessons.filter(
       (lesson) => lesson.visualization === 'concept-flow',
     );
-    expect(conceptLessons).toHaveLength(11);
+    expect(conceptLessons).toHaveLength(18);
     expect(
       new Set(conceptLessons.map((lesson) => lesson.conceptFlow?.scene)).size,
     ).toBe(11);

@@ -1,0 +1,73 @@
+A promise is a placeholder for a value that does not exist yet. `async` and `await` let you write the steps in order, but the scheduling rules from the event loop still decide what runs when.
+
+<Hint>
+  `await` pauses only the current async function. The caller keeps running, and
+  the continuation resumes later as a microtask.
+</Hint>
+
+## Promises and async functions
+
+An `async` function always returns a promise. A `return` value fulfills it; a thrown error rejects it.
+
+```js
+async function loadUser(id) {
+  const response = await fetch(`https://api.example.com/users/${id}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+```
+
+## Handle errors where you can act
+
+A rejected promise that nobody observes becomes an unhandled rejection. Use `try` and `catch` around `await` at the boundary that can recover, retry, or report the failure.
+
+```js
+async function showUser(id) {
+  try {
+    const user = await loadUser(id);
+    console.log(user.name);
+  } catch (error) {
+    console.error('Could not load user', error);
+  }
+}
+```
+
+## Sequential versus concurrent
+
+Awaiting inside a loop runs one request at a time. When requests are independent, start them all and wait once.
+
+```js
+const ids = [1, 2, 3];
+
+// Sequential: total time is the sum of every request.
+for (const id of ids) await loadUser(id);
+
+// Concurrent: total time is close to the slowest request.
+const users = await Promise.all(ids.map(loadUser));
+```
+
+Choose the combinator by the failure policy you need:
+
+- `Promise.all` fails fast: the first rejection rejects the result.
+- `Promise.allSettled` waits for every promise and reports each `fulfilled` or `rejected` outcome.
+- `Promise.race` settles with whichever promise settles first, success or failure.
+- `Promise.any` fulfills with the first success and rejects only if all fail.
+
+## Cancellation with AbortController
+
+A promise cannot be cancelled by itself. Cancellation is a signal you pass to the work. `fetch` and many Node.js APIs accept an `AbortSignal`.
+
+```js
+async function loadWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+```
+
+When the signal aborts, `fetch` rejects with an `AbortError`. Modern runtimes also offer `AbortSignal.timeout(ms)` for the same pattern. Note that `Promise.race` with a timer only stops waiting; without a signal, the losing request keeps running.

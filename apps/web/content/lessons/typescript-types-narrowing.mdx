@@ -1,0 +1,89 @@
+A union type says a value can be one of several shapes. Narrowing is how TypeScript follows your checks and proves which shape you hold at each line.
+
+<Hint>
+  Narrowing is control-flow analysis. After a check, TypeScript removes the
+  members that the check ruled out, so the remaining type is what you proved.
+</Hint>
+
+## Unions
+
+A union is only safe to use through members every option shares. To use anything specific, you must narrow first.
+
+```ts
+type Id = string | number;
+
+function format(id: Id): string {
+  // id.toUpperCase(); // error: does not exist on type 'number'
+  return String(id);
+}
+```
+
+## Narrowing with typeof, in, and equality
+
+```ts
+function pad(value: string | number): string {
+  if (typeof value === 'number') return value.toFixed(2); // number here
+  return value.trim(); // string here
+}
+
+type Cat = { meow: () => void };
+type Dog = { bark: () => void };
+
+function speak(pet: Cat | Dog) {
+  if ('meow' in pet)
+    pet.meow(); // Cat
+  else pet.bark(); // Dog
+}
+
+function greet(name: string | null) {
+  if (name === null) return 'Hello, guest';
+  return `Hello, ${name}`; // string
+}
+```
+
+## Discriminated unions
+
+Give every member a literal field with a different value. Checking that one field narrows the whole object.
+
+```ts
+type Result =
+  | { status: 'ok'; data: string }
+  | { status: 'error'; message: string }
+  | { status: 'loading' };
+
+function render(result: Result): string {
+  switch (result.status) {
+    case 'ok':
+      return result.data;
+    case 'error':
+      return `Failed: ${result.message}`;
+    case 'loading':
+      return 'Loading…';
+  }
+}
+```
+
+## Exhaustive checks with never
+
+When every case is handled, the value left over has type `never`. Assigning it to `never` turns a forgotten case into a compile error.
+
+```ts
+function assertNever(value: never): never {
+  throw new Error(`Unhandled case: ${JSON.stringify(value)}`);
+}
+
+function label(result: Result): string {
+  switch (result.status) {
+    case 'ok':
+      return 'Done';
+    case 'error':
+      return 'Failed';
+    case 'loading':
+      return 'Waiting';
+    default:
+      return assertNever(result);
+  }
+}
+```
+
+If someone later adds `{ status: 'cancelled' }` to `Result`, `label` stops compiling until the new case is handled. The `throw` still protects you at runtime when data arrives from outside the type system.

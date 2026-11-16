@@ -107,6 +107,23 @@ textarea:disabled {
   color: rgb(var(--color-ink));
 }
 
+.lesson-copy pre {
+  margin-top: 1rem;
+  overflow-x: auto;
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 0.35rem;
+  background: rgb(var(--color-surface-raised));
+  padding: 0.85rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.lesson-copy pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 @layer components {
   .eyebrow {
     @apply font-mono text-[10px] uppercase tracking-[0.26em] text-muted;
