@@ -24,6 +24,8 @@ import PlaybackBar from '../animation/PlaybackBar';
 import RuntimeSceneViz from '../animation/RuntimeSceneViz';
 import TwoPointersViz from '../animation/TwoPointersViz';
 
+const RUNTIME_SCENE_SPEED_MS = 1200;
+
 export default function LessonVizPlayer({
   slug,
   visualization: visualizationKind,
@@ -35,7 +37,17 @@ export default function LessonVizPlayer({
   conceptFlow?: ConceptFlowNarrative;
   runtimeScene?: RuntimeScene;
 }) {
-  const [state, send] = useMachine(playbackMachine);
+  // Narrated runtime steps need reading time, so they start at the 0.5×
+  // preset. Seeding the machine context (not sending SPEED from an effect)
+  // keeps the server-rendered selector and the hydrated one in agreement.
+  const [state, send] = useMachine(() =>
+    visualizationKind === 'runtime-scene'
+      ? playbackMachine.withContext({
+          ...playbackMachine.context,
+          speedMs: RUNTIME_SCENE_SPEED_MS,
+        })
+      : playbackMachine,
+  );
   const [bubbleMode, setBubbleMode] = useState<'challenge' | 'review'>(
     'challenge',
   );
@@ -59,10 +71,7 @@ export default function LessonVizPlayer({
 
   useEffect(() => {
     send({ type: 'SETUP', totalSteps: sequence.length });
-    // Narrated runtime steps need reading time: start them at the 0.5× preset.
-    if (visualizationKind === 'runtime-scene')
-      send({ type: 'SPEED', speedMs: 1200 });
-  }, [send, sequence.length, slug, visualizationKind]);
+  }, [send, sequence.length, slug]);
   useEffect(() => {
     if (visualizationKind === 'bubble-sort' && bubbleMode === 'challenge')
       return;

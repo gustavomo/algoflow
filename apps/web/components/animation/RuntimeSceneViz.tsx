@@ -15,6 +15,10 @@ import type {
   RuntimeSceneStep,
   RuntimeSceneToken,
 } from '@algoflow/contracts';
+import {
+  INSTANT,
+  tokenExitVariant,
+} from '../../lib/animation/runtimeSceneMotion';
 
 const TONE_VAR: Record<RuntimeSceneRegionTone, string> = {
   green: '--color-success',
@@ -31,7 +35,6 @@ const tone = (variable: string, alpha = 1) =>
   `rgb(var(${variable}) / ${alpha})`;
 
 const MOVE: Transition = { type: 'spring', stiffness: 240, damping: 26 };
-const INSTANT: Transition = { duration: 0 };
 
 function tokenStyle(
   token: RuntimeSceneToken,
@@ -61,11 +64,13 @@ function Token({
   region,
   isNew,
   reduced,
+  currentIds,
 }: {
   token: RuntimeSceneToken;
   region: RuntimeSceneRegion;
   isNew: boolean;
   reduced: boolean;
+  currentIds: Set<string>;
 }) {
   return (
     <motion.div
@@ -74,14 +79,8 @@ function Token({
       data-token={token.id}
       initial={isNew && !reduced ? { opacity: 0, scale: 0.6 } : false}
       animate={{ opacity: 1, scale: 1 }}
-      variants={{
-        // Tokens that moved to another region vanish instantly here; their
-        // layoutId twin flies from this spot. Popped tokens shrink away.
-        exit: (currentIds: Set<string>) =>
-          currentIds.has(token.id) || reduced
-            ? { opacity: 0, transition: INSTANT }
-            : { opacity: 0, scale: 0.6, transition: { duration: 0.22 } },
-      }}
+      custom={currentIds}
+      variants={{ exit: tokenExitVariant(token.id, reduced) }}
       exit="exit"
       transition={reduced ? INSTANT : MOVE}
       className="whitespace-nowrap rounded-md border px-2.5 py-1 font-mono text-[11px] shadow-sm"
@@ -163,6 +162,7 @@ function Region({
               region={region}
               isNew={!previousIds.has(token.id)}
               reduced={reduced}
+              currentIds={currentIds}
             />
           ))}
         </AnimatePresence>
