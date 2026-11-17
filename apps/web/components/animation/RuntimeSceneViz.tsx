@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  AnimatePresence,
   LayoutGroup,
   motion,
   useReducedMotion,
@@ -28,8 +27,10 @@ const TONE_VAR: Record<RuntimeSceneRegionTone, string> = {
   teal: '--color-scene-teal',
 };
 
-const LINE_HEIGHT = 28;
+const LINE_HEIGHT = 26;
 const CODE_PADDING = 8;
+// Longer snippets scroll inside the panel so the sticky player stays on screen.
+const CODE_VISIBLE_LINES = 6;
 
 const tone = (variable: string, alpha = 1) =>
   `rgb(var(${variable}) / ${alpha})`;
@@ -59,31 +60,54 @@ function tokenStyle(
   };
 }
 
-function Token({
+const tokenClass = (region: RuntimeSceneRegion) =>
+  `rounded-md border py-1 font-mono text-[11px] shadow-sm transition-colors duration-300 ${region.kind === 'pipeline' ? 'break-words px-1.5 text-center' : 'whitespace-nowrap px-2.5'}`;
+
+interface LeavingToken {
+  token: RuntimeSceneToken;
+  /** Where it sat among its region's tokens, so it fades out in place. */
+  index: number;
+}
+
+const EXIT_MS = 240;
+
+/** Tokens of `previous` that no longer exist anywhere in `next`. */
+function poppedTokens(
+  previous: RuntimeSceneStep,
+  next: RuntimeSceneStep,
+): LeavingToken[] {
+  const nextIds = new Set(next.tokens.map((token) => token.id));
+  return previous.tokens
+    .filter((token) => !nextIds.has(token.id))
+    .map((token) => ({
+      token,
+      index: previous.tokens
+        .filter((item) => item.regionId === token.regionId)
+        .indexOf(token),
+    }));
+}
+
+/**
+ * A popped token shrinking away. It is a plain element without a layoutId:
+ * wrapping tokens in AnimatePresence instead keeps every token that *moved*
+ * to another region mounted (invisible, but still taking space) because its
+ * shared-layout exit never completes.
+ */
+function Leaving({
   token,
   region,
-  isNew,
-  reduced,
-  currentIds,
 }: {
   token: RuntimeSceneToken;
   region: RuntimeSceneRegion;
-  isNew: boolean;
-  reduced: boolean;
-  currentIds: Set<string>;
 }) {
   return (
     <motion.div
-      layoutId={token.id}
-      layout="position"
-      data-token={token.id}
-      initial={isNew && !reduced ? { opacity: 0, scale: 0.6 } : false}
-      animate={{ opacity: 1, scale: 1 }}
-      custom={currentIds}
-      variants={{ exit: tokenExitVariant(token.id, reduced) }}
-      exit="exit"
-      transition={reduced ? INSTANT : MOVE}
-      className="whitespace-nowrap rounded-md border px-2.5 py-1 font-mono text-[11px] shadow-sm"
+      aria-hidden
+      data-leaving={token.id}
+      initial={{ opacity: 1, scale: 1 }}
+      variants={{ exit: tokenExitVariant(token.id, false) }}
+      animate="exit"
+      className={tokenClass(region)}
       style={tokenStyle(token, region)}
     >
       {token.label}
@@ -91,33 +115,105 @@ function Token({
   );
 }
 
+function Token({
+  token,
+  region,
+  linkedRegion,
+  isNew,
+  reduced,
+}: {
+  token: RuntimeSceneToken;
+  region: RuntimeSceneRegion;
+  linkedRegion?: RuntimeSceneRegion;
+  isNew: boolean;
+  reduced: boolean;
+}) {
+  const style = tokenStyle(token, region);
+  return (
+    <motion.div
+      layoutId={token.id}
+      layout="position"
+      data-token={token.id}
+      initial={isNew && !reduced ? { opacity: 0, scale: 0.6 } : false}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={reduced ? INSTANT : MOVE}
+      className={tokenClass(region)}
+      style={style}
+    >
+      {token.label}
+      {linkedRegion && (
+        <span
+          data-link={linkedRegion.id}
+          className="ml-2 rounded border px-1 py-px text-[9px] uppercase tracking-[0.08em]"
+          style={{
+            borderColor: tone(TONE_VAR[linkedRegion.tone], 0.7),
+            color: tone(TONE_VAR[linkedRegion.tone]),
+          }}
+        >
+          <span aria-hidden>→ </span>
+          <span className="sr-only">references </span>
+          {linkedRegion.label}
+        </span>
+      )}
+      {token.progress !== undefined && (
+        <span
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(token.progress * 100)}
+          className="mt-1 block h-1 overflow-hidden rounded-full"
+          style={{ background: tone('--color-line-strong') }}
+        >
+          <span
+            className="block h-full rounded-full transition-[width] duration-700 ease-out motion-reduce:transition-none"
+            style={{
+              width: `${token.progress * 100}%`,
+              background: style.borderColor,
+            }}
+          />
+        </span>
+      )}
+    </motion.div>
+  );
+}
+
 const BODY_CLASS: Record<RuntimeSceneRegion['kind'], string> = {
   // column-reverse: the first token sits at the bottom, so the stack grows up.
-  stack: 'min-h-[176px] flex-col-reverse items-stretch justify-start',
+  stack: 'min-h-[132px] flex-col-reverse items-stretch justify-start',
   // FIFO: the head of the queue is the leftmost token.
   queue: 'min-h-[48px] flex-row items-center overflow-x-auto',
-  box: 'min-h-[72px] flex-row flex-wrap content-start items-start',
+  box: 'min-h-[56px] flex-row flex-wrap content-start items-start',
   console: 'min-h-[48px] flex-col',
+  // One station of the strip: its tokens stack and may wrap their label.
+  pipeline: 'min-h-[60px] flex-col items-stretch justify-start',
 };
 
 function Region({
   region,
   tokens,
+  leaving,
   active,
-  currentIds,
   previousIds,
+  regionById,
   reduced,
   className = '',
+  style,
 }: {
   region: RuntimeSceneRegion;
   tokens: RuntimeSceneToken[];
+  leaving: LeavingToken[];
   active: boolean;
-  currentIds: Set<string>;
   previousIds: Set<string>;
+  regionById: Map<string, RuntimeSceneRegion>;
   reduced: boolean;
   className?: string;
+  style?: CSSProperties;
 }) {
   const variable = TONE_VAR[region.tone];
+  const station = region.kind === 'pipeline';
+  const items: Array<RuntimeSceneToken | LeavingToken> = [...tokens];
+  for (const item of leaving)
+    items.splice(Math.min(item.index, items.length), 0, item);
   return (
     <section
       aria-label={region.label}
@@ -125,14 +221,17 @@ function Region({
       data-active={active || undefined}
       className={`flex min-w-0 flex-col rounded-lg border transition-[border-color,background-color,box-shadow] duration-300 ${className}`}
       style={{
+        ...style,
         borderColor: tone(variable, active ? 0.85 : 0.28),
         background: tone(variable, active ? 0.08 : 0.025),
         boxShadow: active ? `0 0 0 3px ${tone(variable, 0.12)}` : 'none',
       }}
     >
-      <header className="flex items-center justify-between gap-2 px-3 pt-2">
+      <header
+        className={`flex items-center justify-between gap-2 pt-2 ${station ? 'px-2' : 'px-3'}`}
+      >
         <span
-          className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em]"
+          className={`font-mono text-[10px] font-semibold uppercase ${station ? 'tracking-[0.06em]' : 'tracking-[0.18em]'}`}
           style={{ color: tone(variable) }}
         >
           {region.label}
@@ -146,7 +245,7 @@ function Region({
       <div
         className={`relative flex flex-1 gap-1.5 p-2 ${BODY_CLASS[region.kind]}`}
       >
-        {tokens.length === 0 && (
+        {items.length === 0 && !station && (
           <span
             aria-hidden
             className="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[10px] text-faint"
@@ -154,18 +253,28 @@ function Region({
             empty
           </span>
         )}
-        <AnimatePresence mode="popLayout" initial={false} custom={currentIds}>
-          {tokens.map((token) => (
-            <Token
-              key={token.id}
-              token={token}
+        {items.map((item) =>
+          'token' in item ? (
+            <Leaving
+              key={`leaving-${item.token.id}`}
+              token={item.token}
               region={region}
-              isNew={!previousIds.has(token.id)}
-              reduced={reduced}
-              currentIds={currentIds}
             />
-          ))}
-        </AnimatePresence>
+          ) : (
+            <Token
+              key={item.id}
+              token={item}
+              region={region}
+              linkedRegion={
+                item.linkRegionId
+                  ? regionById.get(item.linkRegionId)
+                  : undefined
+              }
+              isNew={!previousIds.has(item.id)}
+              reduced={reduced}
+            />
+          ),
+        )}
       </div>
     </section>
   );
@@ -190,9 +299,26 @@ function CodePanel({
   useEffect(() => {
     if (first !== null && last !== null) lastBand.current = { first, last };
   }, [first, last]);
+  // Scroll the panel itself (never the page) to keep the active lines in view.
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = scroller.current;
+    if (!panel || first === null || last === null) return;
+    const middle = CODE_PADDING + ((first + last + 1) / 2) * LINE_HEIGHT;
+    panel.scrollTo({
+      top: Math.max(0, middle - panel.clientHeight / 2),
+      behavior: reduced ? 'auto' : 'smooth',
+    });
+  }, [first, last, reduced]);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-canvas/70">
+    <div
+      ref={scroller}
+      className="overflow-auto rounded-lg border border-line bg-canvas/70"
+      style={{
+        maxHeight: CODE_VISIBLE_LINES * LINE_HEIGHT + CODE_PADDING * 2,
+      }}
+    >
       <div className="relative min-w-max" style={{ padding: CODE_PADDING }}>
         <motion.div
           aria-hidden
@@ -320,7 +446,7 @@ function ConsolePanel({
           {region.label}
         </span>
       </header>
-      <ol className="min-h-[44px] px-3 pb-2 pt-1 font-mono text-[12px] text-ink">
+      <ol className="min-h-[28px] px-3 pb-2 pt-1 font-mono text-[12px] text-ink">
         {output.map((line, index) => (
           <motion.li
             key={`${index}-${line}`}
@@ -354,15 +480,33 @@ export default function RuntimeSceneViz({
   stepIndex: number;
 }) {
   const reduced = Boolean(useReducedMotion());
-  const currentIds = new Set(step.tokens.map((token) => token.id));
   // What the previous rendered step contained, so only genuinely new tokens
   // and output lines animate in. Seeded with the first step for a static SSR.
-  const previousIds = useRef(currentIds);
+  const previousIds = useRef(new Set(step.tokens.map((token) => token.id)));
   const previousOutputLength = useRef(step.output.length);
   useEffect(() => {
     previousIds.current = new Set(step.tokens.map((token) => token.id));
     previousOutputLength.current = step.output.length;
   }, [step]);
+
+  // Popped tokens stay rendered just long enough to shrink away.
+  const [shown, setShown] = useState<{
+    step: RuntimeSceneStep;
+    leaving: LeavingToken[];
+  }>({ step, leaving: [] });
+  if (shown.step !== step)
+    setShown({
+      step,
+      leaving: reduced ? [] : poppedTokens(shown.step, step),
+    });
+  useEffect(() => {
+    if (shown.leaving.length === 0) return;
+    const timer = setTimeout(
+      () => setShown((current) => ({ ...current, leaving: [] })),
+      EXIT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [shown]);
 
   const active = new Set(step.activeRegionIds ?? []);
   const tokensIn = (regionId: string) =>
@@ -373,52 +517,122 @@ export default function RuntimeSceneViz({
   const boxes = byKind('box');
   const queues = byKind('queue');
   const consoles = byKind('console');
+  const pipeline = byKind('pipeline');
+  const regionById = new Map(
+    scene.regions.map((region) => [region.id, region]),
+  );
+  // Only scenes that model the event loop show its indicator.
+  const hasEventLoop = scene.steps.some((item) => item.eventLoop !== undefined);
   const stackBusy = stacks.some((region) => tokensIn(region.id).length > 0);
   const regionProps = (region: RuntimeSceneRegion) => ({
     region,
     tokens: tokensIn(region.id),
+    leaving: shown.leaving.filter((item) => item.token.regionId === region.id),
     active: active.has(region.id),
-    currentIds,
     previousIds: previousIds.current,
+    regionById,
     reduced,
   });
 
   return (
     <section
-      className="border-y border-line bg-surface/40 py-5"
+      className="border-y border-line bg-surface/40 py-3"
       data-viz="runtime-scene"
     >
-      <header className="flex flex-wrap items-end justify-between gap-3 px-1">
-        <div>
-          <p className="eyebrow">runtime scene</p>
-          <p className="mt-2 text-sm text-ink-soft">{step.label}</p>
-        </div>
+      <header className="flex items-center justify-between gap-3 px-1">
+        <p className="eyebrow">runtime scene</p>
         <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
           {scene.code.language}
         </span>
       </header>
-      <div className="mt-4 grid gap-3">
+      <div
+        aria-live="polite"
+        className="mt-3 min-h-[7rem] border-l-2 border-line-strong pl-4"
+      >
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
+          Step {stepIndex + 1} of {scene.steps.length}
+        </p>
+        <p className="mt-1 text-sm font-semibold text-ink">{step.label}</p>
+        <p className="mt-1 text-sm leading-6 text-ink-soft">{step.narration}</p>
+      </div>
+      <div className="mt-3 grid gap-3">
         <CodePanel scene={scene} step={step} reduced={reduced} />
         <LayoutGroup id="runtime-scene">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {stacks.map((region) => (
-              <Region
-                key={region.id}
-                {...regionProps(region)}
-                className="sm:row-span-2"
-              />
-            ))}
-            {boxes.map((region) => (
-              <Region key={region.id} {...regionProps(region)} />
-            ))}
-            <EventLoopIndicator
-              checking={step.eventLoop === 'checking'}
-              stackBusy={stackBusy}
-            />
-          </div>
-          {queues.map((region) => (
-            <Region key={region.id} {...regionProps(region)} />
-          ))}
+          {pipeline.length > 0 && (
+            <div className="overflow-x-auto sm:overflow-visible">
+              <ol
+                data-pipeline
+                className="flex min-w-max items-stretch gap-1 sm:min-w-0"
+              >
+                {pipeline.map((region, index) => (
+                  <li
+                    key={region.id}
+                    className="flex min-w-[84px] flex-1 basis-0 items-stretch gap-1"
+                  >
+                    {index > 0 && (
+                      <span
+                        aria-hidden
+                        className="self-center font-mono text-sm text-subtle"
+                      >
+                        ›
+                      </span>
+                    )}
+                    <Region {...regionProps(region)} className="flex-1" />
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {(stacks.length > 0 || boxes.length > 0 || hasEventLoop) && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {stacks.map((region) => (
+                <Region
+                  key={region.id}
+                  {...regionProps(region)}
+                  className="sm:[grid-row:span_var(--stack-rows)]"
+                  style={
+                    {
+                      '--stack-rows': Math.max(
+                        1,
+                        boxes.length + (hasEventLoop ? 1 : 0),
+                      ),
+                    } as CSSProperties
+                  }
+                />
+              ))}
+              {boxes.map((region, index) => (
+                <Region
+                  key={region.id}
+                  {...regionProps(region)}
+                  className={
+                    // With no stack beside them, a trailing odd box takes the
+                    // full row instead of half of it.
+                    index === boxes.length - 1 &&
+                    stacks.length === 0 &&
+                    !hasEventLoop &&
+                    boxes.length % 2 === 1
+                      ? 'sm:col-span-2'
+                      : ''
+                  }
+                />
+              ))}
+              {hasEventLoop && (
+                <EventLoopIndicator
+                  checking={step.eventLoop === 'checking'}
+                  stackBusy={stackBusy}
+                />
+              )}
+            </div>
+          )}
+          {queues.length > 0 && (
+            <div
+              className={`grid gap-3 ${queues.length > 1 ? 'sm:grid-cols-2' : ''}`}
+            >
+              {queues.map((region) => (
+                <Region key={region.id} {...regionProps(region)} />
+              ))}
+            </div>
+          )}
         </LayoutGroup>
         {consoles.map((region) => (
           <ConsolePanel
@@ -430,16 +644,6 @@ export default function RuntimeSceneViz({
             reduced={reduced}
           />
         ))}
-      </div>
-      <div
-        aria-live="polite"
-        className="mt-4 border-l-2 border-line-strong pl-4"
-      >
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
-          Step {stepIndex + 1} of {scene.steps.length}
-        </p>
-        <p className="mt-1 text-sm font-semibold text-ink">{step.label}</p>
-        <p className="mt-1 text-sm leading-6 text-ink-soft">{step.narration}</p>
       </div>
     </section>
   );

@@ -44,7 +44,12 @@ for (const id of ids) await loadUser(id);
 
 // Concurrent: total time is close to the slowest request.
 const users = await Promise.all(ids.map(loadUser));
+
+// Every outcome: wait for all, never fail fast.
+const results = await Promise.allSettled(ids.map(loadUser));
 ```
+
+A rejection makes `Promise.all` stop waiting, but it does not stop the other requests: they keep running and their results are discarded.
 
 Choose the combinator by the failure policy you need:
 
@@ -70,4 +75,11 @@ async function loadWithTimeout(url, ms) {
 }
 ```
 
-When the signal aborts, `fetch` rejects with an `AbortError`. Modern runtimes also offer `AbortSignal.timeout(ms)` for the same pattern. Note that `Promise.race` with a timer only stops waiting; without a signal, the losing request keeps running.
+When the signal aborts, `fetch` rejects with an `AbortError`. Modern runtimes also offer `AbortSignal.timeout(ms)` for the same pattern; it rejects with a `TimeoutError` instead.
+
+```js
+// Cancellation: the signal stops the request itself.
+const response = await fetch(url, { signal: AbortSignal.timeout(100) });
+```
+
+Note that `Promise.race` with a timer only stops waiting; without a signal, the losing request keeps running.

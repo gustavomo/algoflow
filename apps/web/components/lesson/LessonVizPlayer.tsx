@@ -199,7 +199,14 @@ export default function LessonVizPlayer({
   return (
     <div>
       {visualization}
-      <PlaybackBar state={state} send={send} />
+      {visualizationKind === 'runtime-scene' ? (
+        // Tall scenes scroll inside the sticky player; keep the controls in view.
+        <div className="xl:sticky xl:bottom-0 xl:bg-canvas xl:pb-1">
+          <PlaybackBar state={state} send={send} />
+        </div>
+      ) : (
+        <PlaybackBar state={state} send={send} />
+      )}
     </div>
   );
 }

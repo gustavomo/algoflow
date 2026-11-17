@@ -17,6 +17,26 @@ describe('RuntimeSceneViz source contract', () => {
     expect(source).toContain('flex-col-reverse');
   });
 
+  it('fades popped tokens itself instead of using AnimatePresence', () => {
+    // AnimatePresence never finishes the exit of a token whose layoutId moved
+    // to another region, leaving an invisible element that still takes space.
+    expect(source).not.toContain('<AnimatePresence');
+    expect(source).toContain('poppedTokens(shown.step, step)');
+    expect(source).toContain('tokenExitVariant(token.id, false)');
+    expect(source).toContain('leaving: reduced ? []');
+  });
+
+  it('only shows the event-loop indicator for scenes that model it', () => {
+    expect(source).toContain('item.eventLoop !== undefined');
+    expect(source).toContain('{hasEventLoop && (');
+  });
+
+  it('keeps long snippets inside a panel that scrolls itself', () => {
+    expect(source).toContain('panel.scrollTo(');
+    expect(source).not.toContain('scrollIntoView');
+    expect(source).toContain("behavior: reduced ? 'auto' : 'smooth'");
+  });
+
   it('announces narration and honours reduced motion', () => {
     expect(source).toContain('aria-live="polite"');
     expect(source).toContain('useReducedMotion()');

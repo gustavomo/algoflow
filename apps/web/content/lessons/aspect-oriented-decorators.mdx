@@ -91,6 +91,27 @@ class RatesClient {
 
 Decorators listed on one method apply bottom-up: the decorator closest to the method wraps first, and the top one becomes the outermost layer. With `@log` above `@retry(3)`, one log line covers all attempts. Swap them and `retry` repeats the logged call, so each attempt is logged.
 
+## Stacking all three
+
+The scene beside this lesson traces two calls through this class. `requestRate` stands for the `fetch` call above and fails once with HTTP 503.
+
+```ts
+class RatesClient {
+  @log
+  @memoize
+  @retry(3)
+  async fetchRate(currency: string): Promise<number> {
+    return requestRate(currency); // may reject with HTTP 503
+  }
+}
+
+const client = new RatesClient();
+console.log(await client.fetchRate('EUR'));
+console.log(await client.fetchRate('EUR'));
+```
+
+`@log` is synchronous advice around an async method, so its after line prints a pending promise, not the rate. `@memoize` caches that promise, which is why the second call never reaches `@retry` or the method body, and why a promise that rejects after every attempt would be cached too.
+
 ## Trade-offs
 
 - **Hidden control flow.** A one-word annotation can change timing, error behavior, and how many times code runs. Readers must know what every decorator does.

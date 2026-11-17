@@ -14,6 +14,15 @@ import type {
 } from '@algoflow/contracts';
 import { isLearningResource } from '@algoflow/contracts';
 import {
+  asyncRuntimeScene,
+  closuresRuntimeScene,
+  decoratorsRuntimeScene,
+  genericsRuntimeScene,
+  narrowingRuntimeScene,
+  negativeSpaceRuntimeScene,
+  nestPipelineRuntimeScene,
+} from './runtimeScenes';
+import {
   buildAssessmentCatalog,
   validateMasteryCoverage,
 } from './masteryCatalog';
@@ -917,16 +926,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'language-runtime',
     conceptIds: ['lexical-scope', 'closure-binding'],
     estimatedMinutes: 18,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'javascript',
-    conceptFlow: conceptFlow(
-      'system-boundaries',
-      ['Callback', 'Block scope', 'Function scope'],
-      'Lookup walks outward',
-      'With var, the loop counter skips the block and lives in the function scope, so every callback resolves one shared binding and logs its final value.',
-      'Declare the counter with let so each iteration creates a fresh block binding that its own callback captures.',
-      'The scope model is complete when every closure names the binding it reads, how many times that binding was created, and when the read happens.',
-    ),
+    runtimeScene: closuresRuntimeScene,
     assessmentSlug: 'javascript-closures-scope-checkpoint',
     prerequisites: ['javascript-execution-model'],
   },
@@ -940,16 +942,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'language-runtime',
     conceptIds: ['promise-composition', 'async-cancellation'],
     estimatedMinutes: 24,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'javascript',
-    conceptFlow: conceptFlow(
-      'event-loop',
-      ['Async call', 'Promise', 'Microtasks', 'Continuation'],
-      'await yields, it does not block',
-      'A rejected promise with no handler never reaches a useful continuation and surfaces as an unhandled rejection far from its cause.',
-      'Catch the rejection at the boundary that can retry, report, or abort, and pass an AbortSignal so abandoned work actually stops.',
-      'The async model is complete when every promise has an owner, independent work runs concurrently, and cancellation reaches the underlying operation.',
-    ),
+    runtimeScene: asyncRuntimeScene,
     assessmentSlug: 'javascript-async-patterns-checkpoint',
     prerequisites: ['javascript-closures-scope'],
   },
@@ -963,16 +958,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'type-systems',
     conceptIds: ['type-narrowing', 'discriminated-union'],
     estimatedMinutes: 20,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'typescript',
-    conceptFlow: conceptFlow(
-      'strategy-map',
-      ['Union type', 'Type guard', 'Narrowed branch', 'Exhaustive never'],
-      'Checks become proofs',
-      'A new union member without a matching case reaches the default branch as a real type instead of never, so the exhaustive check rejects the program.',
-      'Handle the new discriminant value so every member is narrowed away and only never reaches the default branch.',
-      'Narrowing is complete when each branch holds exactly the members its checks proved and a forgotten case cannot compile.',
-    ),
+    runtimeScene: narrowingRuntimeScene,
     assessmentSlug: 'typescript-types-narrowing-checkpoint',
     prerequisites: ['javascript-closures-scope'],
   },
@@ -986,16 +974,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'type-systems',
     conceptIds: ['generic-constraint', 'keyof-utility-types'],
     estimatedMinutes: 22,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'typescript',
-    conceptFlow: conceptFlow(
-      'relational-schema',
-      ['Type parameter', 'Constraint', 'keyof lookup', 'Utility type'],
-      'Positions that must agree',
-      'Replacing the type parameter with any erases the link between argument and result, so a wrong property access compiles and fails at runtime.',
-      'Restore the type parameter with a constraint and keyof so the result type is derived from the argument the caller passed.',
-      'The generic signature is complete when constraints state the minimum shape and every output type is computed from the inputs.',
-    ),
+    runtimeScene: genericsRuntimeScene,
     assessmentSlug: 'typescript-generics-checkpoint',
     prerequisites: ['typescript-types-narrowing'],
   },
@@ -1009,22 +990,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'software-correctness',
     conceptIds: ['negative-space', 'fail-fast-boundary'],
     estimatedMinutes: 22,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'typescript',
-    conceptFlow: conceptFlow(
-      'migration-timeline',
-      [
-        'Boundary input',
-        'Precondition',
-        'Operation',
-        'Postcondition',
-        'Invariant',
-      ],
-      'Crash early, never corrupt',
-      'A value that satisfies the type but violates the invariant keeps flowing, gets persisted, and surfaces days later far from the bug.',
-      'An assertion at the boundary stops the operation immediately with a stack trace next to the cause, before any state is written.',
-      'Correctness is complete when types exclude impossible shapes, assertions exclude impossible values, and tests exercise both accepted and rejected inputs.',
-    ),
+    runtimeScene: negativeSpaceRuntimeScene,
     assessmentSlug: 'negative-space-assertions-checkpoint',
     prerequisites: ['typescript-generics'],
   },
@@ -1038,16 +1006,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'backend-architecture',
     conceptIds: ['cross-cutting-concern', 'around-advice'],
     estimatedMinutes: 24,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'typescript',
-    conceptFlow: conceptFlow(
-      'impact-ripple',
-      ['Method', 'Retry advice', 'Log advice', 'Caller'],
-      'Advice wraps the join point',
-      'Stacking retry outside a non-idempotent method, or swapping decorator order, changes what the caller observes without any change to the method body.',
-      'Order decorators deliberately, wrap only idempotent operations with retry, and keep each aspect uniform across the methods it touches.',
-      'The aspect model is complete when each concern lives in one decorator, its join point and ordering are explicit, and business methods stay unchanged.',
-    ),
+    runtimeScene: decoratorsRuntimeScene,
     assessmentSlug: 'aspect-oriented-decorators-checkpoint',
     prerequisites: ['negative-space-assertions'],
   },
@@ -1061,24 +1022,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'backend-architecture',
     conceptIds: ['request-lifecycle', 'validation-pipe'],
     estimatedMinutes: 28,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'typescript',
-    conceptFlow: conceptFlow(
-      'cdn-route',
-      [
-        'Middleware',
-        'Guard',
-        'Intercept in',
-        'Pipe',
-        'Handler',
-        'Intercept out',
-        'Filter',
-      ],
-      'One concern per join point',
-      'An exception thrown by a pipe or handler with no matching filter leaks an inconsistent error shape and hides which stage rejected the request.',
-      'A filter catches the exception and maps it to one consistent response that names the status and the request path.',
-      'The pipeline is complete when access, timing, validation, business logic, and error shape each live at their own stage in a known order.',
-    ),
+    runtimeScene: nestPipelineRuntimeScene,
     assessmentSlug: 'nestjs-request-pipeline-checkpoint',
     prerequisites: ['aspect-oriented-decorators', 'javascript-async-patterns'],
   },
@@ -3315,10 +3261,17 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
       errors.push(`${at} duplicate token ${duplicate}`);
     for (const regionId of [
       ...step.tokens.map((token) => token.regionId),
+      ...step.tokens.flatMap((token) => token.linkRegionId ?? []),
       ...(step.activeRegionIds ?? []),
     ])
       if (!regionIds.has(regionId))
         errors.push(`${at} unknown region ${regionId}`);
+    for (const token of step.tokens)
+      if (
+        token.progress !== undefined &&
+        !(token.progress >= 0 && token.progress <= 1)
+      )
+        errors.push(`${at} token ${token.id} progress out of range`);
   });
   return errors;
 }

@@ -167,7 +167,16 @@ export interface ConceptFlowNarrative {
   terminalSummary: string;
 }
 
-export type RuntimeSceneRegionKind = 'stack' | 'queue' | 'box' | 'console';
+/**
+ * 'pipeline' regions render together as one ordered strip of stations, in
+ * declaration order, so a token can travel from stage to stage.
+ */
+export type RuntimeSceneRegionKind =
+  | 'stack'
+  | 'queue'
+  | 'box'
+  | 'console'
+  | 'pipeline';
 export type RuntimeSceneRegionTone =
   | 'green'
   | 'red'
@@ -188,6 +197,10 @@ export interface RuntimeSceneToken {
   label: string;
   regionId: string;
   tone?: RuntimeSceneTokenTone;
+  /** A region this token references, e.g. the scope a closure keeps alive. */
+  linkRegionId?: string;
+  /** Completion from 0 to 1, drawn as a progress bar for in-flight work. */
+  progress?: number;
 }
 
 /** A full snapshot of the runtime, so seeking to any step is a direct lookup. */
