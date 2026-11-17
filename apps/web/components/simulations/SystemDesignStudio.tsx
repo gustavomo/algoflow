@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import { useMachine } from '@xstate/react';
 import {
   SYSTEM_NODE_TYPES,
@@ -132,7 +133,7 @@ export default function SystemDesignStudio({
   const [state, send] = useMachine(playbackMachine);
   const [challengePlayback, sendChallengePlayback] =
     useMachine(playbackMachine);
-  const reducedMotion = useReducedMotion() ?? false;
+  const reducedMotion = useHydratedReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
   // Below xl the secondary panels collapse into tabs so the page stays short.
   const [panelTab, setPanelTab] = useState<StudioPanelTab>(
