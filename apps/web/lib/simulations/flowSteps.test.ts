@@ -73,5 +73,27 @@ describe('system flow steps', () => {
     const result = createSystemFlowSteps(scenario, graph, 'request');
     expect(result.steps).toEqual([]);
     expect(result.error).toMatch(/connect client to service/i);
+    expect(result.missing).toEqual({
+      kind: 'edge',
+      fromId: 'client',
+      toId: 'service',
+    });
+  });
+
+  it('names the missing block and its flow neighbours', () => {
+    const graph = {
+      nodes: scenario.initialGraph.nodes.filter(
+        (node) => node.id !== 'service',
+      ),
+      edges: [],
+    };
+    const result = createSystemFlowSteps(scenario, graph, 'request');
+    expect(result.error).toMatch(/add a service block/i);
+    expect(result.missing).toEqual({
+      kind: 'node',
+      nodeType: 'service',
+      afterId: 'client',
+      beforeId: undefined,
+    });
   });
 });

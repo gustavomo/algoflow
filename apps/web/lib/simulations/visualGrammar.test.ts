@@ -14,6 +14,8 @@ import {
   classifySystemEdge,
   parallelEdgePosition,
   resolveSystemNodeVisual,
+  systemLabelLimit,
+  systemLabelScale,
   truncateSystemLabel,
 } from './visualGrammar';
 
@@ -146,5 +148,21 @@ describe('system visual grammar', () => {
     const label = 'Primary transactional database for customer orders';
     expect(truncateSystemLabel(label, 18)).toBe('Primary transacti…');
     expect(label).toBe('Primary transactional database for customer orders');
+  });
+});
+
+describe('system canvas label scale', () => {
+  it('keeps labels at least 12px on screen when the canvas shrinks', () => {
+    expect(systemLabelScale(1)).toBe(1);
+    expect(systemLabelScale(0.95)).toBe(1);
+    const phone = 356 / 1000;
+    expect(13 * systemLabelScale(phone) * phone).toBeCloseTo(12);
+    expect(systemLabelScale(0)).toBe(1);
+  });
+
+  it('truncates harder as labels grow', () => {
+    expect(systemLabelLimit(1)).toBe(22);
+    expect(systemLabelLimit(2.6)).toBeLessThan(12);
+    expect(systemLabelLimit(10)).toBe(8);
   });
 });

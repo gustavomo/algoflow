@@ -463,6 +463,21 @@ export const SYSTEM_PHASE_VISUALS: Record<VisualStagePhase, SystemPhaseVisual> =
     terminal: { label: 'terminal state', symbol: '✓' },
   };
 
+/**
+ * How much to enlarge canvas text so a label drawn at `baseUnits` stays at
+ * least `minPx` on screen when the 1000-unit canvas renders at `scale` px per
+ * unit (about 0.36 on a 390px phone). 1 means no change.
+ */
+export function systemLabelScale(scale: number, minPx = 12, baseUnits = 13) {
+  if (!(scale > 0)) return 1;
+  return Math.max(1, minPx / (baseUnits * scale));
+}
+
+/** Characters a node label keeps at a label scale before truncating. */
+export function systemLabelLimit(labelScale: number) {
+  return Math.max(8, Math.floor(20 / labelScale + 0.5) + 2);
+}
+
 export function truncateSystemLabel(label: string, max = 20) {
   if (label.length <= max) return label;
   return `${label.slice(0, Math.max(1, max - 1)).trimEnd()}…`;

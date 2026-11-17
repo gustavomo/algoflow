@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import { useMachine } from '@xstate/react';
 import {
   SYSTEM_NODE_TYPES,
@@ -18,6 +20,22 @@ import {
 } from '@algoflow/contracts';
 import playbackMachine from '../../lib/xstate/playbackMachine';
 import { createSystemFlowSteps } from '../../lib/simulations/flowSteps';
+import {
+  TRACE_TONE_VAR,
+  buildFlowTrace,
+  type TraceFrame,
+} from '../../lib/simulations/flowTrace';
+import {
+  freeSpot,
+  suggestGhosts,
+  type GhostSuggestion,
+} from '../../lib/simulations/ghostSuggestions';
+import { tone } from '../../lib/animation/runtimeSceneTone';
+import {
+  activateNode,
+  classifyStudioKeyTarget,
+  resolveStudioKey,
+} from '../../lib/simulations/designLabInteraction';
 import PlaybackBar from '../animation/PlaybackBar';
 import ProviderControls from '../ai/ProviderControls';
 import SystemDesignCanvas from './SystemDesignCanvas';
@@ -37,6 +55,46 @@ const booleanConfigKeys = [
   ['idempotent', 'Idempotent'],
   ['multiRegion', 'Multi-region'],
 ] as const;
+
+/**
+ * The action caption under the canvas: what the request token just did, in
+ * the token's tone, e.g. `cache miss → origin · 182ms`.
+ */
+function TraceCaption({
+  frame,
+  reducedMotion,
+}: {
+  frame?: TraceFrame;
+  reducedMotion: boolean;
+}) {
+  const variable = TRACE_TONE_VAR[frame?.tone ?? 'neutral'];
+  return (
+    <div
+      aria-hidden
+      data-trace-caption={frame?.tone ?? 'none'}
+      className="flex min-h-[2.25rem] items-center rounded-md border px-2.5 py-1.5 transition-colors duration-300"
+      style={{
+        borderColor: frame ? tone(variable, 0.45) : 'transparent',
+        background: frame ? tone(variable, 0.07) : 'transparent',
+      }}
+    >
+      {frame && (
+        <motion.p
+          key={frame.caption}
+          initial={reducedMotion ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={reducedMotion ? { duration: 0 } : { duration: 0.25 }}
+          className="min-w-0 font-mono text-[13px] font-semibold leading-5 [overflow-wrap:anywhere]"
+          style={{ color: tone(variable) }}
+        >
+          {frame.caption}
+        </motion.p>
+      )}
+    </div>
+  );
+}
+
+type StudioPanelTab = 'challenge' | 'inspect' | 'evaluate' | 'brief' | 'assist';
 
 export default function SystemDesignStudio({
   scenario,
@@ -73,6 +131,16 @@ export default function SystemDesignStudio({
   const [challengeStep, setChallengeStep] = useState<SystemChallengeStep>();
   const [tutorOverlay, setTutorOverlay] = useState<TutorOverlay>();
   const [state, send] = useMachine(playbackMachine);
+  const [challengePlayback, sendChallengePlayback] =
+    useMachine(playbackMachine);
+  const reducedMotion = useHydratedReducedMotion();
+  const canvasRef = useRef<HTMLDivElement>(null);
+  // Below xl the secondary panels collapse into tabs so the page stays short.
+  const [panelTab, setPanelTab] = useState<StudioPanelTab>(
+    challenge ? 'challenge' : 'inspect',
+  );
+  const tabClass = (tab: StudioPanelTab) =>
+    tab === panelTab ? '' : 'max-xl:hidden';
   const currentPhase = scenario.phases?.find((phase) => phase.id === phaseId);
   const availableFlows = useMemo(() => {
     if (!currentPhase) return scenario.flows;
@@ -90,6 +158,34 @@ export default function SystemDesignStudio({
     flow.steps[
       Math.min(state.context.stepIndex, Math.max(0, flow.steps.length - 1))
     ];
+  // A challenge trace, once run, takes over the canvas and the docked bar.
+  const tracing = Boolean(challengeResult);
+  const activePlayback = tracing ? challengePlayback : state;
+  const sendActive = tracing ? sendChallengePlayback : send;
+  const traceSteps = challengeResult?.steps ?? flow.steps;
+  const frames = useMemo(
+    () => buildFlowTrace(traceSteps, graph),
+    [graph, traceSteps],
+  );
+  const traceIndex = Math.min(
+    activePlayback.context.stepIndex,
+    Math.max(0, frames.length - 1),
+  );
+  const traceFrame = frames[traceIndex];
+  const traceStep = challengeResult ? challengeStep : currentStep;
+  const latestAttempt = attempts[0];
+  const ghosts = useMemo(() => {
+    const failed = new Set(
+      latestAttempt?.evaluation.evidence
+        .filter((item) => !item.passed)
+        .map((item) => item.ruleId) ?? [],
+    );
+    return suggestGhosts(
+      graph,
+      challengeResult ? undefined : flow.missing,
+      scenario.rubric.filter((rule) => failed.has(rule.id)),
+    );
+  }, [challengeResult, flow.missing, graph, latestAttempt, scenario.rubric]);
   const selected = graph.nodes.find((node) => node.id === selectedId);
   const selectedEdges = graph.edges.filter(
     (edge) => edge.from === selectedId || edge.to === selectedId,
@@ -143,41 +239,21 @@ export default function SystemDesignStudio({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName))
-      )
-        return;
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
-        event.preventDefault();
-        removeSelected();
-        return;
-      }
-      if (
-        event.altKey &&
-        selectedId &&
-        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
-      ) {
-        event.preventDefault();
-        const dx =
-          event.key === 'ArrowLeft' ? -20 : event.key === 'ArrowRight' ? 20 : 0;
-        const dy =
-          event.key === 'ArrowUp' ? -20 : event.key === 'ArrowDown' ? 20 : 0;
-        nudge(dx, dy);
-        return;
-      }
-      if (event.code === 'Space') {
-        event.preventDefault();
-        send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' });
-      } else if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        send({ type: 'PREV' });
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        send({ type: 'NEXT' });
-      }
+      const action = resolveStudioKey(
+        event,
+        classifyStudioKeyTarget(event.target as HTMLElement | null),
+      );
+      if (!action) return;
+      event.preventDefault();
+      if (action.type === 'remove') removeNode(action.nodeId);
+      else if (action.type === 'nudge')
+        nudge(action.nodeId, action.dx, action.dy);
+      else if (action.type === 'toggle-play')
+        sendActive({
+          type: activePlayback.matches('playing') ? 'PAUSE' : 'PLAY',
+        });
+      else if (action.type === 'prev') sendActive({ type: 'PREV' });
+      else sendActive({ type: 'NEXT' });
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -186,6 +262,16 @@ export default function SystemDesignStudio({
   function addBlock() {
     const sequence = graph.nodes.length + 1;
     const id = `${blockType}-${Date.now().toString(36)}`;
+    // Start from the old cycling slot, then step to a spot clear of blocks
+    // and ghosts so a new block never lands on top of another.
+    const spot = freeSpot(
+      120 + ((sequence * 155) % 760),
+      100 + ((Math.floor(sequence / 5) * 130) % 360),
+      [
+        ...graph.nodes,
+        ...ghosts.flatMap((ghost) => (ghost.kind === 'node' ? [ghost] : [])),
+      ],
+    );
     setGraph({
       ...graph,
       nodes: [
@@ -194,8 +280,8 @@ export default function SystemDesignStudio({
           id,
           type: blockType,
           label: nodeLabel(blockType),
-          x: 120 + ((sequence * 155) % 760),
-          y: 100 + ((Math.floor(sequence / 5) * 130) % 360),
+          x: spot.x,
+          y: spot.y,
           config: {},
         },
       ],
@@ -206,39 +292,72 @@ export default function SystemDesignStudio({
     );
   }
 
-  function selectNode(id: string) {
-    if (connectingFrom && connectingFrom !== id) {
-      const duplicate = graph.edges.some(
-        (edge) => edge.from === connectingFrom && edge.to === id,
-      );
-      if (duplicate) setMessage('Those blocks are already connected.');
-      else
-        setGraph({
-          ...graph,
-          edges: [
-            ...graph.edges,
-            {
-              id: `edge-${Date.now().toString(36)}`,
-              from: connectingFrom,
-              to: id,
-            },
-          ],
-        });
-      setConnectingFrom(undefined);
+  function placeGhost(ghost: GhostSuggestion) {
+    const stamp = Date.now().toString(36);
+    if (ghost.kind === 'edge') {
+      setGraph({
+        ...graph,
+        edges: [
+          ...graph.edges,
+          { id: `edge-${stamp}`, from: ghost.fromId, to: ghost.toId },
+        ],
+      });
+      setMessage('Suggested connection placed.');
+      return;
     }
+    const id = `${ghost.nodeType}-${stamp}`;
+    const wires = [
+      ghost.connectFromId && { from: ghost.connectFromId, to: id },
+      ghost.connectToId && { from: id, to: ghost.connectToId },
+    ].filter((wire): wire is { from: string; to: string } => Boolean(wire));
+    setGraph({
+      nodes: [
+        ...graph.nodes,
+        {
+          id,
+          type: ghost.nodeType,
+          label: nodeLabel(ghost.nodeType),
+          x: ghost.x,
+          y: ghost.y,
+          config: {},
+        },
+      ],
+      edges: [
+        ...graph.edges,
+        ...wires.map((wire, index) => ({
+          id: `edge-${stamp}-${index}`,
+          ...wire,
+        })),
+      ],
+    });
     setSelectedId(id);
+    setMessage(
+      `${nodeLabel(ghost.nodeType)} placed${wires.length ? ' and wired into the flow' : ''}.`,
+    );
   }
 
-  function removeSelected() {
-    if (!selectedId) return;
+  function selectNode(id: string) {
+    const next = activateNode(
+      graph,
+      connectingFrom,
+      id,
+      `edge-${Date.now().toString(36)}`,
+    );
+    if (next.graph !== graph) setGraph(next.graph);
+    setConnectingFrom(next.connectingFrom);
+    setSelectedId(next.selectedId);
+    setPanelTab('inspect');
+    if (next.message) setMessage(next.message);
+  }
+
+  function removeNode(id: string) {
+    if (!graph.nodes.some((node) => node.id === id)) return;
     setGraph({
-      nodes: graph.nodes.filter((node) => node.id !== selectedId),
-      edges: graph.edges.filter(
-        (edge) => edge.from !== selectedId && edge.to !== selectedId,
-      ),
+      nodes: graph.nodes.filter((node) => node.id !== id),
+      edges: graph.edges.filter((edge) => edge.from !== id && edge.to !== id),
     });
-    setSelectedId(undefined);
-    setConnectingFrom(undefined);
+    if (selectedId === id) setSelectedId(undefined);
+    if (connectingFrom === id) setConnectingFrom(undefined);
     setMessage('Block and incident connections removed.');
   }
 
@@ -263,12 +382,11 @@ export default function SystemDesignStudio({
     });
   }
 
-  function nudge(dx: number, dy: number) {
-    if (!selectedId) return;
+  function nudge(id: string, dx: number, dy: number) {
     setGraph({
       ...graph,
       nodes: graph.nodes.map((node) =>
-        node.id === selectedId
+        node.id === id
           ? {
               ...node,
               x: Math.max(70, Math.min(930, node.x + dx)),
@@ -406,40 +524,211 @@ export default function SystemDesignStudio({
           </div>
         </section>
 
-        <SystemDesignCanvas
-          graph={graph}
-          onChange={setGraph}
-          selectedId={selectedId}
-          onSelect={selectNode}
-          connectingFrom={connectingFrom}
-          activeNodeId={challengeStep?.nodeId ?? currentStep?.nodeId}
-          activeEdgeId={challengeStep?.edgeId ?? currentStep?.edgeId}
-          activePhase={challengeStep?.phase ?? currentStep?.phase}
-          activeFlow={
-            challengeStep ? challengeResult?.primaryEffect : flowTemplate?.kind
-          }
-          emphasizedNodeIds={[
-            ...(challengeResult?.affectedNodeIds ?? []),
-            ...tutorNodeIds,
-          ]}
-          emphasizedEdgeIds={[
-            ...(challengeResult?.affectedEdgeIds ?? []),
-            ...tutorEdgeIds,
-          ]}
-        />
-
-        {challenge && (
-          <DesignChallengePanel
-            definition={challenge}
-            graph={graph}
-            phaseId={currentPhase?.id}
-            onResult={updateChallengeResult}
-            onActiveStep={updateChallengeStep}
-          />
+        {scenario.phases && scenario.phases.length > 0 && (
+          <section className="panel p-5">
+            <div>
+              <p className="eyebrow">Migration phase</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {scenario.phases.map((phase) => (
+                  <button
+                    key={phase.id}
+                    type="button"
+                    onClick={() => setPhaseId(phase.id)}
+                    aria-pressed={phase.id === phaseId}
+                    className={`min-h-11 rounded-full border px-3 py-2 text-xs transition ${
+                      phase.id === phaseId
+                        ? 'border-ink bg-ink text-canvas'
+                        : 'border-line text-subtle hover:border-line-strong hover:text-ink'
+                    }`}
+                  >
+                    {phase.title}
+                  </button>
+                ))}
+              </div>
+              {currentPhase && (
+                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <p className="text-ink-soft">{currentPhase.goal}</p>
+                  <p className="rounded-xl border border-line bg-canvas/50 p-3 text-subtle">
+                    Gate · {currentPhase.gate}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
         )}
 
+        <div ref={canvasRef} className="scroll-mt-24">
+          <SystemDesignCanvas
+            graph={graph}
+            onChange={setGraph}
+            selectedId={selectedId}
+            onSelect={selectNode}
+            connectingFrom={connectingFrom}
+            activeNodeId={challengeStep?.nodeId ?? currentStep?.nodeId}
+            activeEdgeId={challengeStep?.edgeId ?? currentStep?.edgeId}
+            activePhase={challengeStep?.phase ?? currentStep?.phase}
+            activeFlow={
+              challengeStep
+                ? challengeResult?.primaryEffect
+                : flowTemplate?.kind
+            }
+            emphasizedNodeIds={[
+              ...(challengeResult?.affectedNodeIds ?? []),
+              ...tutorNodeIds,
+            ]}
+            emphasizedEdgeIds={[
+              ...(challengeResult?.affectedEdgeIds ?? []),
+              ...tutorEdgeIds,
+            ]}
+            trace={
+              traceFrame && (tracing || !flow.error)
+                ? {
+                    frame: traceFrame,
+                    stepIndex: traceIndex,
+                    durationMs: Math.min(
+                      900,
+                      activePlayback.context.speedMs * 0.85,
+                    ),
+                  }
+                : undefined
+            }
+            complete={
+              activePlayback.matches('completed') &&
+              traceFrame?.tone !== 'error'
+            }
+            ghosts={ghosts}
+            onPlaceGhost={placeGhost}
+            footer={
+              <div
+                data-canvas-dock
+                className="sticky bottom-0 z-10 border-t border-line-strong bg-canvas/95 px-3 pb-2 pt-3 backdrop-blur sm:px-4"
+              >
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  {tracing ? (
+                    <p className="eyebrow">Challenge trace</p>
+                  ) : (
+                    <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-subtle sm:flex-none">
+                      <span className="eyebrow shrink-0">Flow</span>
+                      <select
+                        value={flowId}
+                        onChange={(event) => setFlowId(event.target.value)}
+                        aria-label="Representative flow"
+                        className="field min-h-11 min-w-0 flex-1 px-2 py-2 text-sm sm:w-64 sm:flex-none"
+                      >
+                        {availableFlows.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <span className="ml-auto font-mono text-xs text-subtle">
+                    {traceStep?.label ?? 'Flow unavailable'}
+                  </span>
+                </div>
+                {!tracing && flow.error ? (
+                  <p
+                    role="status"
+                    className="mt-2 rounded-md border border-warning/30 bg-warning-muted px-3 py-2 text-sm text-warning"
+                  >
+                    {flow.error}
+                  </p>
+                ) : (
+                  <div className="mt-2 grid gap-1 lg:grid-cols-[minmax(0,20rem)_1fr] lg:items-start lg:gap-3">
+                    <TraceCaption
+                      frame={traceFrame}
+                      reducedMotion={reducedMotion}
+                    />
+                    <p
+                      aria-live="polite"
+                      className="min-h-12 text-sm leading-6 text-ink-soft lg:min-h-[2.25rem]"
+                    >
+                      {traceStep?.narration}
+                    </p>
+                  </div>
+                )}
+                <PlaybackBar
+                  state={activePlayback}
+                  send={sendActive}
+                  attached
+                />
+              </div>
+            }
+          />
+        </div>
+
+        {message && (
+          <p
+            role="status"
+            className="rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted"
+          >
+            {message}
+          </p>
+        )}
+
+        <div
+          role="group"
+          aria-label="Lab panels"
+          className="-mx-1 flex gap-1 overflow-x-auto px-1 xl:hidden"
+        >
+          {(
+            [
+              ['challenge', 'Challenge'],
+              ['inspect', 'Inspect'],
+              ['evaluate', 'Evaluate'],
+              ['brief', 'Brief'],
+              ['assist', 'Assist'],
+            ] as const
+          )
+            .filter(([tab]) => tab !== 'challenge' || challenge)
+            .map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                aria-pressed={panelTab === tab}
+                onClick={() => setPanelTab(tab)}
+                className={`min-h-11 shrink-0 rounded-full border px-4 text-sm transition ${
+                  panelTab === tab
+                    ? 'border-ink bg-ink text-canvas'
+                    : 'border-line text-subtle hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+        </div>
+
+        {challenge && (
+          <div className={tabClass('challenge')}>
+            <DesignChallengePanel
+              definition={challenge}
+              graph={graph}
+              phaseId={currentPhase?.id}
+              onResult={updateChallengeResult}
+              onActiveStep={updateChallengeStep}
+              playback={challengePlayback}
+              sendPlayback={sendChallengePlayback}
+              onShowTrace={() =>
+                canvasRef.current?.scrollIntoView({
+                  behavior: reducedMotion ? 'auto' : 'smooth',
+                  block: 'start',
+                })
+              }
+            />
+          </div>
+        )}
+
+        {!selected && (
+          <p
+            className={`panel p-5 text-sm text-muted xl:hidden ${tabClass('inspect')}`}
+          >
+            Tap a block on the canvas to edit its label, settings and
+            connections.
+          </p>
+        )}
         {selected && (
-          <section className="panel p-5">
+          <section className={`panel p-5 ${tabClass('inspect')}`}>
             <div className="flex flex-wrap items-end gap-3">
               <label className="min-w-48 flex-1 text-xs text-subtle">
                 Selected label
@@ -492,7 +781,7 @@ export default function SystemDesignStudio({
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => setConnectingFrom(selected.id)}
-                className="button-secondary px-3 py-2 text-xs"
+                className="button-secondary min-h-11 px-3 py-2 text-xs"
               >
                 Connect from this block
               </button>
@@ -504,15 +793,17 @@ export default function SystemDesignStudio({
               ].map(([label, dx, dy]) => (
                 <button
                   key={String(label)}
-                  onClick={() => nudge(Number(dx), Number(dy))}
-                  className="button-secondary h-9 w-9 text-sm"
+                  onClick={() =>
+                    selectedId && nudge(selectedId, Number(dx), Number(dy))
+                  }
+                  className="button-secondary h-11 w-11 text-sm"
                 >
                   {label}
                 </button>
               ))}
               <button
-                onClick={removeSelected}
-                className="rounded-xl border border-danger/40 px-3 py-2 text-xs text-danger"
+                onClick={() => selectedId && removeNode(selectedId)}
+                className="min-h-11 rounded-xl border border-danger/40 px-3 py-2 text-xs text-danger"
               >
                 Remove block
               </button>
@@ -552,69 +843,7 @@ export default function SystemDesignStudio({
           </section>
         )}
 
-        <section className="panel p-5">
-          {scenario.phases && scenario.phases.length > 0 && (
-            <div className="mb-5 border-b border-line pb-5">
-              <p className="eyebrow">Migration phase</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {scenario.phases.map((phase) => (
-                  <button
-                    key={phase.id}
-                    type="button"
-                    onClick={() => setPhaseId(phase.id)}
-                    aria-pressed={phase.id === phaseId}
-                    className={`rounded-full border px-3 py-2 text-xs transition ${
-                      phase.id === phaseId
-                        ? 'border-ink bg-ink text-canvas'
-                        : 'border-line text-subtle hover:border-line-strong hover:text-ink'
-                    }`}
-                  >
-                    {phase.title}
-                  </button>
-                ))}
-              </div>
-              {currentPhase && (
-                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                  <p className="text-ink-soft">{currentPhase.goal}</p>
-                  <p className="rounded-xl border border-line bg-canvas/50 p-3 text-subtle">
-                    Gate · {currentPhase.gate}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="flex-1 text-xs text-subtle">
-              Representative flow
-              <select
-                value={flowId}
-                onChange={(event) => setFlowId(event.target.value)}
-                className="field mt-2 w-full px-3 py-2"
-              >
-                {availableFlows.map((flow) => (
-                  <option key={flow.id} value={flow.id}>
-                    {flow.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="text-xs text-muted">
-              {currentStep?.label ?? 'Flow unavailable'}
-            </span>
-          </div>
-          {flow.error ? (
-            <p className="mt-4 rounded-xl border border-warning/30 bg-warning-muted p-4 text-sm text-warning">
-              {flow.error}
-            </p>
-          ) : (
-            <p className="mt-4 min-h-12 text-sm leading-6 text-ink-soft">
-              {currentStep?.narration}
-            </p>
-          )}
-          <PlaybackBar state={state} send={send} />
-        </section>
-
-        <section className="panel p-6">
+        <section className={`panel p-6 ${tabClass('evaluate')}`}>
           <p className="eyebrow">Deterministic evaluation</p>
           <textarea
             value={tradeOffs}
@@ -672,7 +901,7 @@ export default function SystemDesignStudio({
       </div>
 
       <aside className="space-y-5 xl:sticky xl:top-28 xl:self-start">
-        <section className="panel p-5">
+        <section className={`panel p-5 ${tabClass('brief')}`}>
           <p className="eyebrow">Requirements</p>
           <ul className="mt-4 space-y-3 text-sm text-ink-soft">
             {scenario.requirements.map((item) => (
@@ -686,7 +915,9 @@ export default function SystemDesignStudio({
             ))}
           </ul>
         </section>
-        <section className="rounded-2xl border border-line-strong bg-surface-raised p-5">
+        <section
+          className={`rounded-2xl border border-line-strong bg-surface-raised p-5 ${tabClass('assist')}`}
+        >
           <p className="eyebrow">AI design partner</p>
           <p className="mt-3 text-sm leading-6 text-muted">
             Requests one constrained patch. It cannot apply or save changes.
@@ -748,16 +979,10 @@ export default function SystemDesignStudio({
             </div>
           )}
         </section>
-        <TutorPanel context={tutorContext} onOverlay={updateTutorOverlay} />
-        {message && (
-          <p
-            role="status"
-            className="rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted"
-          >
-            {message}
-          </p>
-        )}
-        <details className="panel p-5">
+        <div className={tabClass('assist')}>
+          <TutorPanel context={tutorContext} onOverlay={updateTutorOverlay} />
+        </div>
+        <details className={`panel p-5 ${tabClass('brief')}`}>
           <summary className="cursor-pointer text-sm font-medium">
             Text topology summary
           </summary>

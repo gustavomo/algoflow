@@ -9,7 +9,6 @@ import type {
   PathModuleDefinition,
   RuntimeScene,
   TopicDefinition,
-  VisualSceneKind,
 } from '@algoflow/contracts';
 import {
   RUNTIME_SCENE_ACTION_MAX_LENGTH,
@@ -991,18 +990,6 @@ function path(input: {
       ...(resources[index] ? [resources[index]] : []),
     ],
   }));
-  const sceneByTrack: Record<string, VisualSceneKind> = {
-    algorithms: 'pointer-search',
-    'engineering-foundations': 'system-boundaries',
-    languages: 'event-loop',
-    'software-architecture': 'strategy-map',
-    data: 'relational-schema',
-    'cloud-platform': 'container-layers',
-    'ai-foundations': 'vector-space',
-    'ai-engineering': 'agent-loop',
-    'communication-learning': 'active-reading',
-    'technical-leadership': 'impact-ripple',
-  };
   return {
     ...definition,
     level: input.level ?? 'foundation',
@@ -1016,13 +1003,6 @@ function path(input: {
       0,
     ),
     assessmentSlug: `${input.slug}-diagnostic`,
-    visualBlueprint: {
-      version: 1,
-      scene: sceneByTrack[input.trackSlug] ?? 'strategy-map',
-      objective: input.outcomes.join('; '),
-      terminalEvidence:
-        'Demonstrate the outcomes on an unfamiliar problem after every planned teaching module becomes available.',
-    },
   };
 }
 

@@ -5,11 +5,22 @@ import type {
   SystemNodeType,
 } from '@algoflow/contracts';
 
+/** What a flow needs before it can run, in a form the canvas can draw. */
+export type MissingFlowPart =
+  | {
+      kind: 'node';
+      nodeType: SystemNodeType;
+      /** Existing flow neighbours the new block should sit between. */
+      afterId?: string;
+      beforeId?: string;
+    }
+  | { kind: 'edge'; fromId: string; toId: string };
+
 export function createSystemFlowSteps(
   scenario: SystemDesignScenario,
   graph: SystemDesignGraph,
   flowId: string,
-): { steps: SystemFlowStep[]; error?: string } {
+): { steps: SystemFlowStep[]; error?: string; missing?: MissingFlowPart } {
   const template = scenario.flows.find((flow) => flow.id === flowId);
   if (!template) return { steps: [], error: 'Flow is not available.' };
   const firstOfType = (type: SystemNodeType) =>
@@ -20,6 +31,12 @@ export function createSystemFlowSteps(
     return {
       steps: [],
       error: `Add a ${template.nodeTypes[missingIndex].replaceAll('-', ' ')} block to run this flow.`,
+      missing: {
+        kind: 'node',
+        nodeType: template.nodeTypes[missingIndex],
+        afterId: nodes[missingIndex - 1]?.id,
+        beforeId: nodes.slice(missingIndex + 1).find(Boolean)?.id,
+      },
     };
   const steps: SystemFlowStep[] = [
     {
@@ -42,6 +59,7 @@ export function createSystemFlowSteps(
       return {
         steps: [],
         error: `Connect ${previous.label} to ${current.label} to run this flow.`,
+        missing: { kind: 'edge', fromId: previous.id, toId: current.id },
       };
     steps.push({
       nodeId: current.id,
