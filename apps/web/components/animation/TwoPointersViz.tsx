@@ -55,7 +55,8 @@ export default function TwoPointersViz({
       </header>
 
       <div className="mt-10 overflow-x-auto pb-8 pt-6">
-        <div className="mx-auto flex min-w-[560px] justify-center gap-3 px-6">
+        {/* Cells shrink to fit a phone; the fixed strip returns from `sm` up. */}
+        <div className="mx-auto flex justify-center gap-1 px-1 sm:min-w-[560px] sm:gap-3 sm:px-6">
           {snapshot.values.map((value, index) => {
             const isLeft = index === snapshot.left;
             const isRight = index === snapshot.right;
@@ -63,11 +64,14 @@ export default function TwoPointersViz({
             const changing =
               index === snapshot.removedIndex || index === snapshot.addedIndex;
             return (
-              <div key={`${index}-${value}`} className="relative w-14">
+              <div
+                key={`${index}-${value}`}
+                className="relative min-w-0 max-w-14 flex-1 sm:w-14 sm:flex-none"
+              >
                 {isLeft && (
                   <motion.span
                     layoutId="left-pointer"
-                    className="absolute -top-7 left-1/2 -translate-x-1/2 font-mono text-[10px] font-semibold text-ink"
+                    className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-xs font-semibold text-ink sm:text-[10px]"
                     transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
                   >
                     L ↓
@@ -91,29 +95,29 @@ export default function TwoPointersViz({
                       : 'rgba(255,255,255,.01)',
                   }}
                   transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
-                  className={`grid h-14 place-items-center border-y font-mono text-base ${discarded ? 'line-through' : ''}`}
+                  className={`grid h-14 place-items-center border-y font-mono text-sm sm:text-base ${discarded ? 'line-through' : ''}`}
                 >
                   {value}
                 </motion.div>
-                <span className="mt-2 block text-center font-mono text-[9px] text-faint">
+                <span className="mt-2 block text-center font-mono text-[11px] text-faint sm:text-[9px]">
                   {index}
                 </span>
                 {isRight && (
                   <motion.span
                     layoutId="right-pointer"
-                    className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-mono text-[10px] font-semibold text-ink"
+                    className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-xs font-semibold text-ink sm:text-[10px]"
                     transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
                   >
                     ↑ R
                   </motion.span>
                 )}
                 {index === snapshot.removedIndex && (
-                  <span className="absolute left-1/2 top-full mt-8 -translate-x-1/2 whitespace-nowrap font-mono text-[9px] text-danger">
+                  <span className="absolute left-1/2 top-full mt-8 -translate-x-1/2 whitespace-nowrap font-mono text-[11px] text-danger sm:text-[9px]">
                     subtract
                   </span>
                 )}
                 {index === snapshot.addedIndex && (
-                  <span className="absolute left-1/2 top-full mt-8 -translate-x-1/2 whitespace-nowrap font-mono text-[9px] text-success">
+                  <span className="absolute left-1/2 top-full mt-8 -translate-x-1/2 whitespace-nowrap font-mono text-[11px] text-success sm:text-[9px]">
                     add
                   </span>
                 )}

@@ -356,7 +356,7 @@ export default function ConceptFlowViz({
           <p className="mt-2 text-sm text-ink-soft">{step.label}</p>
         </div>
         <span
-          className={`font-mono text-[10px] uppercase tracking-[0.2em] ${step.phase === 'failure' ? 'text-danger' : step.phase === 'terminal' ? 'text-success' : 'text-warning'}`}
+          className={`font-mono text-xs uppercase tracking-[0.12em] sm:text-[10px] sm:tracking-[0.2em] ${step.phase === 'failure' ? 'text-danger' : step.phase === 'terminal' ? 'text-success' : 'text-warning'}`}
         >
           {step.phase}
         </span>
@@ -415,7 +415,38 @@ export default function ConceptFlowViz({
           />
         ))}
       </svg>
-      <div className="grid grid-cols-5 border-y border-line py-2 text-center font-mono text-[8px] uppercase tracking-wider text-faint sm:text-[9px]">
+      {/* The diagram's labels shrink below reading size on a phone, so the
+          same nodes are listed at full size. The SVG keeps the topology. */}
+      <ol
+        data-node-legend
+        className="mb-3 mt-1 flex flex-wrap gap-1.5 px-1 sm:hidden"
+      >
+        {narrative.nodes.map((node, index) => {
+          const isActive = active.has(node.id);
+          const isFailed = failed.has(node.id);
+          return (
+            <li
+              key={node.id}
+              aria-current={isActive ? 'step' : undefined}
+              className={`rounded border px-2 py-1 text-xs leading-4 ${
+                isFailed
+                  ? 'border-danger text-danger'
+                  : isActive
+                    ? 'border-ink bg-ink font-semibold text-canvas'
+                    : completed.has(node.id)
+                      ? 'border-line-strong text-ink-soft'
+                      : 'border-line text-subtle'
+              }`}
+            >
+              <span className="mr-1.5 font-mono opacity-70">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              {node.label}
+            </li>
+          );
+        })}
+      </ol>
+      <div className="grid grid-cols-5 border-y border-line py-2 text-center font-mono text-[11px] uppercase tracking-tight text-faint sm:text-[9px] sm:tracking-wider">
         {(
           ['initial', 'transition', 'failure', 'recovery', 'terminal'] as const
         ).map((phase) => (
