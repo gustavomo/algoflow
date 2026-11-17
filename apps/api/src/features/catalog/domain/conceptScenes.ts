@@ -1020,7 +1020,7 @@ function vectorScene(): RuntimeScene {
       plot(
         step(
           'The nearest neighbours are the answer',
-          `Sort by score and keep the best two. ${top[0]} and ${top[1]} are the closest directions to "baby cat", although neither text contains those words. That is the difference from keyword search.`,
+          `Sort by score and keep the best two: ${top[0]} and ${top[1]} are the closest directions to "baby cat". ${top[0]} ranks first although it shares no word with the query. That is the difference from keyword search.`,
           [11],
           cosineScores,
           [result],

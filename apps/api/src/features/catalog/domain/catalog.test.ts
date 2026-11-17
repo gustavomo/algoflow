@@ -486,6 +486,17 @@ describe('catalog', () => {
     expect(validateRuntimeScene('demo', sound)).toEqual([]);
   });
 
+  it('rejects an event loop that checks while the stack is busy', () => {
+    const broken = structuredClone(scene('javascript-execution-model'));
+    const busy = broken.steps.findIndex((step) =>
+      step.tokens.some((token) => token.regionId === 'call-stack'),
+    );
+    broken.steps[busy].eventLoop = 'checking';
+    expect(validateRuntimeScene('demo', broken)).toEqual([
+      `demo: runtime step ${busy + 1} event loop cannot check while the stack is busy`,
+    ]);
+  });
+
   it('rejects malformed plot views', () => {
     const broken = structuredClone(scene('vectors-for-machine-learning'));
     const view = (index: number) => broken.steps[index].plots![0];

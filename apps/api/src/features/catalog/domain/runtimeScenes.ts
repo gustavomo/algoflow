@@ -974,7 +974,7 @@ function decoratorsScene(): RuntimeScene {
       ),
       step(
         'The inner layers never run',
-        '@retry and fetchRate did not execute at all, yet the caller cannot tell. Order is behavior: with @memoize below @retry the cache would sit inside the loop, and a promise that rejects after every attempt gets cached like any other.',
+        '@retry and fetchRate did not execute at all, yet the caller cannot tell. Order is behavior: with @memoize below @retry the cache would sit inside the loop, so the first rejected attempt gets cached and attempts 2 and 3 replay that same rejection: the retries do nothing.',
         [11],
         [tok('call-2', '1.08', 'caller', OK), entry('Promise ⟨1.08⟩', OK)],
         [...first, before, afterCached, '1.08'],

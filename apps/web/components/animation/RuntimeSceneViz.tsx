@@ -951,7 +951,7 @@ export default function RuntimeSceneViz({
                 ))}
                 {hasEventLoop && (
                   <EventLoopIndicator
-                    checking={step.eventLoop === 'checking'}
+                    checking={step.eventLoop === 'checking' && !stackBusy}
                     stackBusy={stackBusy}
                     beside={freeStacks.length > 0}
                   />

@@ -518,7 +518,6 @@ const eventLoopSteps: RuntimeScene = {
       ],
       output: ['Start', 'End', 'Promise', 'Timeout'],
       activeRegionIds: ['task-queue', 'call-stack', 'console'],
-      eventLoop: 'checking',
     },
     {
       label: 'Every queue is empty',
@@ -3234,6 +3233,14 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
     ])
       if (!regionIds.has(regionId))
         errors.push(`${at} unknown region ${regionId}`);
+    // The loop only checks the queues once the call stack is empty.
+    if (
+      step.eventLoop === 'checking' &&
+      step.tokens.some(
+        (token) => regionById.get(token.regionId)?.kind === 'stack',
+      )
+    )
+      errors.push(`${at} event loop cannot check while the stack is busy`);
     for (const token of step.tokens) {
       if (
         token.progress !== undefined &&
