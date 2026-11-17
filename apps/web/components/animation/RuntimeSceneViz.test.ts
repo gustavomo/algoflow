@@ -14,6 +14,14 @@ const data = readFileSync(
   new URL('./RuntimeSceneData.tsx', import.meta.url),
   'utf8',
 );
+const table = readFileSync(
+  new URL('./RuntimeSceneTable.tsx', import.meta.url),
+  'utf8',
+);
+const plot = readFileSync(
+  new URL('./RuntimeScenePlot.tsx', import.meta.url),
+  'utf8',
+);
 const challenge = readFileSync(
   new URL('../lesson/PredictChallenge.tsx', import.meta.url),
   'utf8',
@@ -121,6 +129,37 @@ describe('RuntimeSceneViz source contract', () => {
     expect(source).toContain('isNew && !reduced && token.cell');
     expect(source).toContain('<ArrayRegion');
     expect(source).toContain('<GridRegion');
+  });
+
+  it('draws tables that exist and links their rows by foreign key', () => {
+    expect(source).toContain('<TableRegions');
+    expect(source).toContain('views={step.tables ?? []}');
+    // A table without a view is not drawn at all.
+    expect(table).toContain('return view ? [{ region, view }] : [];');
+    expect(table).toContain('data-table-row={rowKey(region.id, row.id)}');
+    expect(table).toContain('tableLinkPath(source, target)');
+    expect(table).toContain("data-link={link.orphan ? 'orphan' : 'resolved'}");
+    expect(table).toContain('new ResizeObserver(measure)');
+    // The gutter that stacked links bow into only exists on phones.
+    expect(table).toContain('pr-6 sm:gap-10 sm:pr-0');
+    expect(table).toContain('reduced ? INSTANT');
+  });
+
+  it('plots points that glide, with the query, its angle and neighbours', () => {
+    expect(source).toContain('<PlotRegion');
+    expect(plot).toContain('data-plot-point={id}');
+    expect(plot).toContain('animate={{ left: `${at.x}%`, top: `${at.y}%`');
+    expect(plot).toContain('data-plot-query');
+    expect(plot).toContain('plotArcPath(query, anglePoint, ANGLE_RADIUS)');
+    expect(plot).toContain('data-plot-neighbour=');
+    expect(plot).toContain('data-unit-arc');
+    expect(plot).toContain('reduced ? INSTANT : MOVE');
+    // Labels are HTML at a fixed size, so they stay readable on a phone.
+    expect(plot).toContain('font-mono text-xs');
+  });
+
+  it('leads with the scene for every data region kind', () => {
+    expect(source).toContain("['array', 'grid', 'table', 'plot'].includes(");
   });
 
   it('offers a predict-first challenge driven by the same steps', () => {

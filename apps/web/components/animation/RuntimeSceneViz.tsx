@@ -22,6 +22,8 @@ import {
 } from '../../lib/animation/runtimeSceneMotion';
 import { TONE_VAR, tone } from '../../lib/animation/runtimeSceneTone';
 import { ArrayRegion, GridRegion } from './RuntimeSceneData';
+import { PlotRegion } from './RuntimeScenePlot';
+import { TableRegions } from './RuntimeSceneTable';
 
 const ACTION_TONE_VAR: Record<RuntimeSceneActionTone, string> = {
   compare: '--color-warning',
@@ -221,9 +223,11 @@ const BODY_CLASS: Record<RuntimeSceneRegion['kind'], string> = {
   console: 'min-h-[48px] flex-col',
   // One station of the strip: its tokens stack and may wrap their label.
   pipeline: 'min-h-[52px] flex-col items-stretch justify-start sm:min-h-[60px]',
-  // Data regions are drawn by ArrayRegion and GridRegion, not by Region.
+  // Data regions are drawn by their own components, not by Region.
   array: '',
   grid: '',
+  table: '',
+  plot: '',
 };
 
 function Region({
@@ -630,17 +634,17 @@ export default function RuntimeSceneViz({
   stepIndex: number;
   /**
    * Lead with the scene at every width (scene, caption, narration, code from
-   * `sm` up) instead of only on phones. Defaults to on for array and grid
-   * scenes: the data is the lesson, and a grid below the code would fall out
-   * of the sticky desktop player.
+   * `sm` up) instead of only on phones. Defaults to on for array, grid, table
+   * and plot scenes: the data is the lesson, and a tall region below the code
+   * would fall out of the sticky desktop player.
    */
   sceneFirst?: boolean;
 }) {
   const reduced = Boolean(useReducedMotion());
   const sceneFirst =
     sceneFirstProp ??
-    scene.regions.some(
-      (region) => region.kind === 'array' || region.kind === 'grid',
+    scene.regions.some((region) =>
+      ['array', 'grid', 'table', 'plot'].includes(region.kind),
     );
   // What the previous rendered step contained, so only genuinely new tokens
   // and output lines animate in. Seeded with the first step for a static SSR.
@@ -682,6 +686,8 @@ export default function RuntimeSceneViz({
   const pipeline = byKind('pipeline');
   const arrays = byKind('array');
   const grids = byKind('grid');
+  const tables = byKind('table');
+  const plots = byKind('plot');
   // A stack next to a grid is its frontier: the two share one row.
   const gridStacks = grids.length > 0 ? stacks : [];
   const freeStacks = grids.length > 0 ? [] : stacks;
@@ -860,6 +866,30 @@ export default function RuntimeSceneViz({
                 )
               );
             })}
+            {plots.map((region) => {
+              const view = step.plots?.find(
+                (item) => item.regionId === region.id,
+              );
+              return (
+                view && (
+                  <PlotRegion
+                    key={region.id}
+                    region={region}
+                    view={view}
+                    active={active.has(region.id)}
+                    reduced={reduced}
+                  />
+                )
+              );
+            })}
+            {tables.length > 0 && (
+              <TableRegions
+                regions={tables}
+                views={step.tables ?? []}
+                activeIds={active}
+                reduced={reduced}
+              />
+            )}
             {grids.length > 0 && (
               <div
                 className={`grid gap-2 sm:gap-3 ${gridStacks.length > 0 ? 'grid-cols-[minmax(0,1fr)_5.5rem] sm:grid-cols-[minmax(0,1fr)_8rem]' : ''}`}

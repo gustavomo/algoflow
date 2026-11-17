@@ -6,16 +6,19 @@ import type {
   RuntimeSceneToken,
 } from '@algoflow/contracts';
 
-type TokenExtra = Pick<RuntimeSceneToken, 'tone' | 'linkRegionId' | 'progress'>;
+export type TokenExtra = Pick<
+  RuntimeSceneToken,
+  'tone' | 'linkRegionId' | 'progress'
+>;
 
-const region = (
+export const region = (
   id: string,
   label: string,
   kind: RuntimeSceneRegion['kind'],
   tone: RuntimeSceneRegion['tone'],
 ): RuntimeSceneRegion => ({ id, label, kind, tone });
 
-const tok = (
+export const tok = (
   id: string,
   label: string,
   regionId: string,
@@ -23,7 +26,7 @@ const tok = (
 ): RuntimeSceneToken => ({ id, label, regionId, ...extra });
 
 /** One full snapshot. `codeLines` should be a contiguous zero-based range. */
-const step = (
+export const step = (
   label: string,
   narration: string,
   codeLines: number[],
@@ -64,12 +67,12 @@ export function withActions(
   };
 }
 
-const range = (from: number, to: number) =>
+export const range = (from: number, to: number) =>
   Array.from({ length: to - from + 1 }, (_, index) => from + index);
 
-const OK = { tone: 'ok' } as const;
-const ERROR = { tone: 'error' } as const;
-const MUTED = { tone: 'muted' } as const;
+export const OK = { tone: 'ok' } as const;
+export const ERROR = { tone: 'error' } as const;
+export const MUTED = { tone: 'muted' } as const;
 
 function closuresScene(): RuntimeScene {
   const script = tok('script', 'script', 'stack', MUTED);

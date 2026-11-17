@@ -142,6 +142,16 @@ export interface ConceptFlowConnection {
   label?: string;
 }
 
+/**
+ * The idea a concept flow is following, drawn as one token that travels from
+ * node to node. Its label is what the idea has become at this step.
+ */
+export interface ConceptFlowToken {
+  label: string;
+  nodeId: string;
+  tone?: 'ok' | 'error';
+}
+
 export interface ConceptFlowStep {
   id: string;
   phase: VisualStagePhase;
@@ -152,6 +162,7 @@ export interface ConceptFlowStep {
   completedNodeIds?: string[];
   failedNodeIds?: string[];
   activeConnectionIndexes?: number[];
+  token?: ConceptFlowToken;
 }
 
 export interface ConceptFlowNarrative {
@@ -169,6 +180,10 @@ export interface ConceptFlowNarrative {
  *
  * 'array' and 'grid' regions hold algorithm data: their per-step contents are
  * `step.arrays` and `step.grids`, generated from the algorithm itself.
+ *
+ * 'table' and 'plot' regions are drawn from `step.tables` and `step.plots`.
+ * A table without a view at some step does not exist yet (or any more) and is
+ * not drawn; a plot needs a view at every step.
  */
 export type RuntimeSceneRegionKind =
   | 'stack'
@@ -177,7 +192,9 @@ export type RuntimeSceneRegionKind =
   | 'console'
   | 'pipeline'
   | 'array'
-  | 'grid';
+  | 'grid'
+  | 'table'
+  | 'plot';
 
 /** Region kinds whose scenes are generated, so they may run many steps. */
 export const RUNTIME_SCENE_DATA_REGION_KINDS: readonly RuntimeSceneRegionKind[] =
@@ -186,6 +203,10 @@ export const RUNTIME_SCENE_DATA_REGION_KINDS: readonly RuntimeSceneRegionKind[] 
 /** Hand-written scenes stay short; generated algorithm traces may run longer. */
 export const RUNTIME_SCENE_MAX_STEPS = 12;
 export const RUNTIME_SCENE_MAX_GENERATED_STEPS = 80;
+/** What still reads on a phone: a table this wide and tall, a plot this busy. */
+export const RUNTIME_SCENE_TABLE_MAX_COLUMNS = 5;
+export const RUNTIME_SCENE_TABLE_MAX_ROWS = 8;
+export const RUNTIME_SCENE_PLOT_MAX_POINTS = 12;
 export type RuntimeSceneRegionTone =
   | 'green'
   | 'red'
@@ -221,6 +242,8 @@ export const RUNTIME_SCENE_CELL_STATES = [
   'frontier',
   'current',
   'path',
+  // A value that breaks a rule: an anomaly, an orphan, a misleading score.
+  'error',
 ] as const;
 export type RuntimeSceneCellState = (typeof RUNTIME_SCENE_CELL_STATES)[number];
 
@@ -248,6 +271,63 @@ export interface RuntimeSceneArrayView {
   pointers?: RuntimeSceneArrayPointer[];
   /** An inclusive highlighted span, e.g. the window or the sorted suffix. */
   range?: { from: number; to: number; label?: string };
+}
+
+export interface RuntimeSceneTableColumn {
+  label: string;
+  /** Marks a primary-key or foreign-key column. */
+  key?: 'pk' | 'fk';
+}
+
+/**
+ * One row of a 'table' region. The id is stable across steps, so a row keeps
+ * its identity while its cells change.
+ */
+export interface RuntimeSceneTableRow {
+  id: string;
+  /** One value per column of the view. */
+  cells: string[];
+  state?: RuntimeSceneCellState;
+  /** Column indexes the state applies to; the whole row when omitted. */
+  focus?: number[];
+  /**
+   * A foreign-key reference to a row of another table. A `rowId` that the
+   * target view does not hold is an orphan: it is drawn as a broken link.
+   */
+  link?: { regionId: string; rowId: string };
+}
+
+/** The contents of one 'table' region at one step. */
+export interface RuntimeSceneTableView {
+  regionId: string;
+  columns: RuntimeSceneTableColumn[];
+  rows: RuntimeSceneTableRow[];
+}
+
+/** A point of a 'plot' region. Coordinates run from 0 to 1, origin bottom left. */
+export interface RuntimeScenePlotPoint {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  state?: RuntimeSceneCellState;
+  /** Draw the point as an arrow from the origin. */
+  vector?: boolean;
+}
+
+/** The contents of one 'plot' region at one step. */
+export interface RuntimeScenePlotView {
+  regionId: string;
+  axes?: { x: string; y: string };
+  points: RuntimeScenePlotPoint[];
+  /** The query vector, always drawn as an arrow from the origin. */
+  query?: { label: string; x: number; y: number };
+  /** Ids of the points found nearest to the query. Needs a query. */
+  neighbours?: string[];
+  /** The angle between the query and one point, e.g. `cos = 0.95`. */
+  angle?: { pointId: string; label: string };
+  /** Draw the unit arc that normalised vectors land on. */
+  unitArc?: boolean;
 }
 
 /** The contents of one 'grid' region at one step. */
@@ -325,6 +405,8 @@ export interface RuntimeSceneStep {
   action?: RuntimeSceneAction;
   arrays?: RuntimeSceneArrayView[];
   grids?: RuntimeSceneGridView[];
+  tables?: RuntimeSceneTableView[];
+  plots?: RuntimeScenePlotView[];
   challenge?: RuntimeSceneChallenge;
 }
 

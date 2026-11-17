@@ -19,6 +19,9 @@ import {
   RUNTIME_SCENE_DATA_REGION_KINDS,
   RUNTIME_SCENE_MAX_GENERATED_STEPS,
   RUNTIME_SCENE_MAX_STEPS,
+  RUNTIME_SCENE_PLOT_MAX_POINTS,
+  RUNTIME_SCENE_TABLE_MAX_COLUMNS,
+  RUNTIME_SCENE_TABLE_MAX_ROWS,
   isLearningResource,
 } from '@algoflow/contracts';
 import {
@@ -28,6 +31,13 @@ import {
   slidingWindowRuntimeScene,
   twoPointersRuntimeScene,
 } from './algorithmScenes';
+import {
+  agentLoopRuntimeScene,
+  cdnRuntimeScene,
+  containersRuntimeScene,
+  relationalRuntimeScene,
+  vectorRuntimeScene,
+} from './conceptScenes';
 import {
   asyncRuntimeScene,
   closuresRuntimeScene,
@@ -751,15 +761,8 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'distributed-systems',
     conceptIds: ['cache-boundary', 'origin-fallback'],
     estimatedMinutes: 22,
-    visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'cdn-route',
-      ['Client', 'DNS', 'CDN edge', 'Origin'],
-      'Latency falls near the user',
-      'A cache miss at the edge cannot produce content locally and must cross the longer path to the origin.',
-      'The origin response fills the edge cache so the next equivalent request terminates near the client.',
-      'The route is complete when DNS selects the edge, hits terminate locally, and misses visibly fall back to the origin.',
-    ),
+    visualization: 'runtime-scene',
+    runtimeScene: cdnRuntimeScene,
     assessmentSlug: 'request-cdn-checkpoint',
     prerequisites: [],
   },
@@ -773,16 +776,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'relational-data',
     conceptIds: ['primary-key', 'foreign-key'],
     estimatedMinutes: 22,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'sql',
-    conceptFlow: conceptFlow(
-      'relational-schema',
-      ['Entity', 'Primary key', 'Relationship', 'Constraint'],
-      'Integrity before convenience',
-      'A relationship without an enforced constraint permits an orphan reference that the model claims cannot exist.',
-      'A foreign-key constraint rejects the invalid transition and restores referential integrity.',
-      'The model is complete when identity, relationships, and constraints make invalid states unrepresentable at the database boundary.',
-    ),
+    runtimeScene: relationalRuntimeScene,
     assessmentSlug: 'relational-modeling-checkpoint',
     prerequisites: [],
   },
@@ -796,15 +792,8 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'containers',
     conceptIds: ['image-layer', 'container-runtime'],
     estimatedMinutes: 18,
-    visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'container-layers',
-      ['Source', 'Image layers', 'Container', 'Runtime boundary'],
-      'Build once, run consistently',
-      'Mutating a running container as if it were the image creates drift that cannot be reproduced from source.',
-      'Rebuild immutable layers and recreate the container so runtime state returns to the declared artifact.',
-      'The lifecycle is complete when source produces immutable layers and the disposable runtime remains inside an explicit boundary.',
-    ),
+    visualization: 'runtime-scene',
+    runtimeScene: containersRuntimeScene,
     assessmentSlug: 'containers-images-checkpoint',
     prerequisites: [],
   },
@@ -818,16 +807,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'ai-mathematics',
     conceptIds: ['vector-representation', 'dot-product'],
     estimatedMinutes: 24,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'python',
-    conceptFlow: conceptFlow(
-      'vector-space',
-      ['Features', 'Vector', 'Transformation', 'Similarity'],
-      'Geometry becomes computation',
-      'Comparing unscaled features lets one large numeric dimension dominate distance regardless of meaning.',
-      'A deliberate transformation restores comparable geometry before similarity is measured.',
-      'The model is complete when features become coordinates, transformations preserve the intended signal, and similarity has geometric meaning.',
-    ),
+    runtimeScene: vectorRuntimeScene,
     assessmentSlug: 'vectors-ml-checkpoint',
     prerequisites: [],
   },
@@ -841,15 +823,8 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'agent-systems',
     conceptIds: ['tool-loop', 'agent-evaluation'],
     estimatedMinutes: 24,
-    visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'agent-loop',
-      ['Goal', 'Model decision', 'Tool call', 'Observation', 'Evaluation'],
-      'Bounded autonomy with evidence',
-      'A tool call without a trustworthy observation leaves the next model decision ungrounded and the loop can repeat a bad action.',
-      'Return bounded tool evidence to state and let evaluation decide whether to continue, recover, or stop.',
-      'The agent loop is complete when every action returns evidence and evaluation enforces the goal, permissions, and stopping condition.',
-    ),
+    visualization: 'runtime-scene',
+    runtimeScene: agentLoopRuntimeScene,
     assessmentSlug: 'agent-loop-checkpoint',
     prerequisites: [],
   },
@@ -3383,9 +3358,15 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
       )
         errors.push(`${at} token ${token.id} progress out of range`);
       const home = regionById.get(token.regionId);
-      // An array is drawn from `step.arrays`; it cannot also hold tokens.
-      if (home?.kind === 'array')
-        errors.push(`${at} token ${token.id} cannot sit in array ${home.id}`);
+      // Arrays, tables and plots are drawn from their views, not from tokens.
+      if (
+        home?.kind === 'array' ||
+        home?.kind === 'table' ||
+        home?.kind === 'plot'
+      )
+        errors.push(
+          `${at} token ${token.id} cannot sit in ${home.kind} ${home.id}`,
+        );
       if (home?.kind === 'grid' && token.cell?.regionId !== home.id)
         errors.push(`${at} token ${token.id} needs a cell in grid ${home.id}`);
       if (token.cell) {
@@ -3401,9 +3382,13 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
 
     const arrays = step.arrays ?? [];
     const grids = step.grids ?? [];
+    const tables = step.tables ?? [];
+    const plots = step.plots ?? [];
     for (const duplicate of duplicates([
       ...arrays.map((view) => view.regionId),
       ...grids.map((view) => view.regionId),
+      ...tables.map((view) => view.regionId),
+      ...plots.map((view) => view.regionId),
     ]))
       errors.push(`${at} duplicate view of region ${duplicate}`);
     // A data region is redrawn from its view, so no step may leave it blank.
@@ -3418,6 +3403,103 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
         !grids.some((view) => view.regionId === region.id)
       )
         errors.push(`${at} missing grid view ${region.id}`);
+      if (
+        region.kind === 'plot' &&
+        !plots.some((view) => view.regionId === region.id)
+      )
+        errors.push(`${at} missing plot view ${region.id}`);
+    }
+    for (const view of tables) {
+      const where = `${at} table ${view.regionId}`;
+      if (regionById.get(view.regionId)?.kind !== 'table') {
+        errors.push(`${where} is not a table region`);
+        continue;
+      }
+      if (
+        !Array.isArray(view.columns) ||
+        view.columns.length < 1 ||
+        view.columns.length > RUNTIME_SCENE_TABLE_MAX_COLUMNS ||
+        view.columns.some((column) => !column.label?.trim())
+      )
+        errors.push(
+          `${where} needs 1 to ${RUNTIME_SCENE_TABLE_MAX_COLUMNS} labelled columns`,
+        );
+      if (view.rows.length > RUNTIME_SCENE_TABLE_MAX_ROWS)
+        errors.push(
+          `${where} has ${view.rows.length} rows, limit is ${RUNTIME_SCENE_TABLE_MAX_ROWS}`,
+        );
+      for (const duplicate of duplicates(view.rows.map((row) => row.id)))
+        errors.push(`${where} duplicate row ${duplicate}`);
+      for (const row of view.rows) {
+        if (row.cells.length !== view.columns.length)
+          errors.push(
+            `${where} row ${row.id} expects ${view.columns.length} cells, has ${row.cells.length}`,
+          );
+        if (
+          row.state !== undefined &&
+          !RUNTIME_SCENE_CELL_STATES.includes(row.state)
+        )
+          errors.push(`${where} unknown row state ${row.state}`);
+        if (row.focus?.some((column) => !isIndex(column, view.columns.length)))
+          errors.push(`${where} row ${row.id} focus out of range`);
+        // The referenced row may be missing (an orphan), the table may not.
+        if (
+          row.link &&
+          (row.link.regionId === view.regionId ||
+            regionById.get(row.link.regionId)?.kind !== 'table')
+        )
+          errors.push(`${where} row ${row.id} must link to another table`);
+      }
+    }
+    for (const view of plots) {
+      const where = `${at} plot ${view.regionId}`;
+      if (regionById.get(view.regionId)?.kind !== 'plot') {
+        errors.push(`${where} is not a plot region`);
+        continue;
+      }
+      const inUnit = (value: unknown) =>
+        typeof value === 'number' && value >= 0 && value <= 1;
+      if (view.points.length > RUNTIME_SCENE_PLOT_MAX_POINTS)
+        errors.push(
+          `${where} has ${view.points.length} points, limit is ${RUNTIME_SCENE_PLOT_MAX_POINTS}`,
+        );
+      const pointIds = new Set(view.points.map((point) => point.id));
+      for (const duplicate of duplicates(view.points.map((point) => point.id)))
+        errors.push(`${where} duplicate point ${duplicate}`);
+      for (const point of view.points) {
+        if (!point.label?.trim())
+          errors.push(`${where} unlabelled point ${point.id}`);
+        if (!inUnit(point.x) || !inUnit(point.y))
+          errors.push(`${where} point ${point.id} out of range`);
+        if (
+          point.state !== undefined &&
+          !RUNTIME_SCENE_CELL_STATES.includes(point.state)
+        )
+          errors.push(`${where} unknown point state ${point.state}`);
+      }
+      if (
+        view.query &&
+        !(
+          view.query.label?.trim() &&
+          inUnit(view.query.x) &&
+          inUnit(view.query.y)
+        )
+      )
+        errors.push(`${where} query needs a label and coordinates in range`);
+      if (view.axes && !(view.axes.x?.trim() && view.axes.y?.trim()))
+        errors.push(`${where} axes need two labels`);
+      if ((view.neighbours?.length || view.angle) && !view.query)
+        errors.push(`${where} neighbours and angle need a query`);
+      for (const duplicate of duplicates(view.neighbours ?? []))
+        errors.push(`${where} duplicate neighbour ${duplicate}`);
+      for (const id of view.neighbours ?? [])
+        if (!pointIds.has(id)) errors.push(`${where} unknown neighbour ${id}`);
+      if (view.angle) {
+        if (!pointIds.has(view.angle.pointId))
+          errors.push(`${where} angle to unknown point ${view.angle.pointId}`);
+        if (!view.angle.label?.trim())
+          errors.push(`${where} angle needs a label`);
+      }
     }
     for (const view of arrays) {
       const where = `${at} array ${view.regionId}`;

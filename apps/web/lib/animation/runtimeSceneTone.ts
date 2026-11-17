@@ -21,6 +21,7 @@ export const CELL_STATE_VAR: Record<RuntimeSceneCellState, string | null> = {
   frontier: '--color-scene-orange',
   sorted: '--color-success',
   path: '--color-success',
+  error: '--color-danger',
 };
 
 export const tone = (variable: string, alpha = 1) =>
