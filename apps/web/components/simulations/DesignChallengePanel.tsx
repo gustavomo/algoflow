@@ -11,9 +11,10 @@ import type {
   SystemChallengeStep,
   SystemDesignGraph,
 } from '@algoflow/contracts';
+import type { StateFrom } from 'xstate';
 import { createDesignChallengeMachine } from '../../lib/xstate/designChallengeMachine';
-import playbackMachine from '../../lib/xstate/playbackMachine';
-import PlaybackBar from '../animation/PlaybackBar';
+import type playbackMachine from '../../lib/xstate/playbackMachine';
+import type { PlaybackEvent } from '../../lib/xstate/playbackMachine';
 
 const humanize = (value: string) => value.replaceAll('-', ' ');
 
@@ -23,19 +24,26 @@ export default function DesignChallengePanel({
   phaseId,
   onResult,
   onActiveStep,
+  playback,
+  sendPlayback,
+  onShowTrace,
 }: {
   definition: SystemChallengeDefinition;
   graph: SystemDesignGraph;
   phaseId?: string;
   onResult: (result?: SystemChallengeRunResult) => void;
   onActiveStep: (step?: SystemChallengeStep) => void;
+  /** Trace playback, owned by the studio so its controls dock to the canvas. */
+  playback: StateFrom<typeof playbackMachine>;
+  sendPlayback: (event: PlaybackEvent) => void;
+  /** Brings the canvas (and its docked controls) into view. */
+  onShowTrace?: () => void;
 }) {
   const machine = useMemo(
     () => createDesignChallengeMachine(definition),
     [definition],
   );
   const [state, send] = useMachine(machine);
-  const [playback, sendPlayback] = useMachine(playbackMachine);
   const result = state.context.result;
   const phaseMatches = definition.phaseId === phaseId;
   const activeStep =
@@ -259,10 +267,19 @@ export default function DesignChallengePanel({
                 <p className="eyebrow">Trace the consequence</p>
                 <span className="text-xs text-subtle">{activeStep?.label}</span>
               </div>
-              <p className="mt-3 min-h-12 text-sm leading-6 text-ink-soft">
-                {activeStep?.narration}
+              <p className="mt-3 text-sm leading-6 text-ink-soft">
+                The request token now replays this trace on the canvas. Step it
+                with the controls docked under the canvas.
               </p>
-              <PlaybackBar state={playback} send={sendPlayback} />
+              {onShowTrace && (
+                <button
+                  type="button"
+                  onClick={onShowTrace}
+                  className="button-secondary mt-3 min-h-11 px-4 py-2 text-sm"
+                >
+                  Show the trace on the canvas
+                </button>
+              )}
             </div>
 
             {state.matches('reflecting') ? (
