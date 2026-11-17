@@ -1,6 +1,5 @@
 import type {
   AssessmentDefinition,
-  ConceptFlowNarrative,
   CurriculumDomain,
   LearningLevel,
   LearningPathDefinition,
@@ -31,6 +30,13 @@ import {
   slidingWindowRuntimeScene,
   twoPointersRuntimeScene,
 } from './algorithmScenes';
+import {
+  activeReadingFlow,
+  crossTeamChangeFlow,
+  staffImpactFlow,
+  systemsMapFlow,
+  technicalStrategyFlow,
+} from './conceptFlows';
 import {
   agentLoopRuntimeScene,
   cdnRuntimeScene,
@@ -305,83 +311,6 @@ export const topics: TopicDefinition[] = [
     domain: 'architecture',
   },
 ];
-
-function conceptFlow(
-  scene: VisualSceneKind,
-  labels: string[],
-  metric: string,
-  failureNarration: string,
-  recoveryNarration: string,
-  terminalSummary: string,
-): ConceptFlowNarrative {
-  const ids = labels.map((_, index) => `node-${index + 1}`);
-  return {
-    version: 1,
-    scene,
-    nodes: labels.map((label, index) => ({ id: `node-${index + 1}`, label })),
-    connections: labels.slice(1).map((_, index) => ({
-      from: `node-${index + 1}`,
-      to: `node-${index + 2}`,
-    })),
-    steps: [
-      {
-        id: 'initial',
-        phase: 'initial',
-        label: `Start with ${labels[0]}`,
-        narration: `${labels[0]} establishes the first boundary in the model.`,
-        metric,
-        activeNodeIds: [ids[0]],
-        completedNodeIds: [],
-        activeConnectionIndexes: [],
-      },
-      ...labels.slice(1).map((label, offset) => {
-        const index = offset + 1;
-        return {
-          id: `transition-${index}`,
-          phase: 'transition' as const,
-          label: `Connect ${label}`,
-          narration: `${label} joins the model through an explicit responsibility and connection.`,
-          metric,
-          activeNodeIds: [ids[index]],
-          completedNodeIds: ids.slice(0, index),
-          activeConnectionIndexes: [index - 1],
-        };
-      }),
-      {
-        id: 'failure',
-        phase: 'failure',
-        label: 'Inspect the failure boundary',
-        narration: failureNarration,
-        metric,
-        activeNodeIds: [],
-        completedNodeIds: ids.slice(0, -1),
-        failedNodeIds: [ids.at(-1)!],
-        activeConnectionIndexes: [Math.max(0, labels.length - 2)],
-      },
-      {
-        id: 'recovery',
-        phase: 'recovery',
-        label: 'Restore the invariant',
-        narration: recoveryNarration,
-        metric,
-        activeNodeIds: [ids.at(-1)!],
-        completedNodeIds: ids.slice(0, -1),
-        activeConnectionIndexes: [Math.max(0, labels.length - 2)],
-      },
-      {
-        id: 'terminal',
-        phase: 'terminal',
-        label: 'Complete causal model',
-        narration: terminalSummary,
-        metric,
-        activeNodeIds: [],
-        completedNodeIds: ids,
-        activeConnectionIndexes: labels.slice(1).map((_, index) => index),
-      },
-    ],
-    terminalSummary,
-  };
-}
 
 const eventLoopSteps: RuntimeScene = {
   code: {
@@ -724,14 +653,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['system-boundaries', 'feedback-loop'],
     estimatedMinutes: 18,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'system-boundaries',
-      ['User interface', 'Application service', 'Data store', 'Observability'],
-      'One request, four responsibilities',
-      'Without operational feedback, a request can fail after the data boundary while the team sees only a vague symptom.',
-      'Observability closes the feedback loop by connecting behavior, evidence, and the responsible boundary.',
-      'The system is complete when the user action, service contract, durable state, and operational feedback form one inspectable loop.',
-    ),
+    conceptFlow: systemsMapFlow,
     assessmentSlug: 'software-systems-checkpoint',
     prerequisites: [],
   },
@@ -839,14 +761,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['active-recall', 'reading-synthesis'],
     estimatedMinutes: 18,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'active-reading',
-      ['Preview', 'Question', 'Read', 'Recall', 'Apply'],
-      'Reading produces evidence',
-      'Passive rereading feels fluent but produces no evidence that the model can be reconstructed without the page.',
-      'Close the material, recall the answer, inspect the gap, and apply the idea to a new example.',
-      'The reading cycle is complete when a chapter becomes retrievable questions, a reconstructed model, and an independent application.',
-    ),
+    conceptFlow: activeReadingFlow,
     assessmentSlug: 'technical-reading-checkpoint',
     prerequisites: [],
   },
@@ -861,19 +776,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['staff-scope', 'business-impact'],
     estimatedMinutes: 24,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'impact-ripple',
-      [
-        'Business context',
-        'Problem selection',
-        'Technical leverage',
-        'Durable impact',
-      ],
-      'Scope grows through leverage',
-      'Choosing a visible but low-consequence project expands activity without changing an important business or organizational constraint.',
-      'Return to business context, select the highest-leverage problem, and build a system that other teams can sustain.',
-      'Staff impact is complete when judgment changes a consequential boundary and the improvement remains useful without permanent heroics.',
-    ),
+    conceptFlow: staffImpactFlow,
     assessmentSlug: 'staff-role-impact-checkpoint',
     prerequisites: [],
   },
@@ -888,14 +791,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['technical-strategy', 'strategic-tradeoffs'],
     estimatedMinutes: 28,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'strategy-map',
-      ['Diagnosis', 'Guiding policy', 'Coherent actions', 'Success signals'],
-      'Direction before projects',
-      'A project list without a diagnosis or guiding policy produces competing actions and no falsifiable direction.',
-      'Reconnect actions to one diagnosis, constrain them with policy, and define signals that can disprove the approach.',
-      'Technical strategy is complete when diagnosis, policy, coherent actions, and success signals reinforce one directional choice.',
-    ),
+    conceptFlow: technicalStrategyFlow,
     assessmentSlug: 'technical-strategy-checkpoint',
     prerequisites: ['staff-role-and-impact'],
   },
@@ -910,20 +806,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['migration-phases', 'cross-team-alignment'],
     estimatedMinutes: 30,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'migration-timeline',
-      [
-        'Shared problem',
-        'Incremental plan',
-        'Validation gates',
-        'Cutover',
-        'Learning',
-      ],
-      'Change is a sociotechnical system',
-      'A cutover without a validated gate or explicit owner creates an irreversible technical and organizational failure boundary.',
-      'Stop the cutover, exercise rollback, resolve the failed gate, and resume only from verified shared state.',
-      'The migration is complete when staged ownership, validation, reversible cutover, and captured learning close the change loop.',
-    ),
+    conceptFlow: crossTeamChangeFlow,
     assessmentSlug: 'cross-team-change-checkpoint',
     prerequisites: ['technical-strategy'],
   },
@@ -3655,6 +3538,27 @@ export function validateCatalog() {
         steps.filter((step) => step.phase === 'terminal').length !== 1
       )
         errors.push(`${lesson.slug}: incomplete visual narrative`);
+      const nodeIds = new Set(lesson.conceptFlow.nodes.map((node) => node.id));
+      for (const connection of lesson.conceptFlow.connections)
+        if (!nodeIds.has(connection.from) || !nodeIds.has(connection.to))
+          errors.push(`${lesson.slug}: concept connection to unknown node`);
+      steps.forEach((step, index) => {
+        const at = `${lesson.slug}: concept step ${index + 1}`;
+        if (!step.label?.trim() || !step.narration?.trim())
+          errors.push(`${at} needs a label and a narration`);
+        for (const id of [
+          ...step.activeNodeIds,
+          ...(step.completedNodeIds ?? []),
+          ...(step.failedNodeIds ?? []),
+          ...(step.token ? [step.token.nodeId] : []),
+        ])
+          if (!nodeIds.has(id)) errors.push(`${at} unknown node ${id}`);
+        if (step.token && !step.token.label?.trim())
+          errors.push(`${at} empty token label`);
+        for (const connection of step.activeConnectionIndexes ?? [])
+          if (!isIndex(connection, lesson.conceptFlow!.connections.length))
+            errors.push(`${at} connection ${connection} out of range`);
+      });
     }
     for (const prerequisite of lesson.prerequisites)
       if (!lessonBySlug.has(prerequisite))

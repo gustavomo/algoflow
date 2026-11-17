@@ -69,7 +69,59 @@ describe('catalog', () => {
       expect(steps.some((step) => step.phase === 'recovery')).toBe(true);
       expect(steps.at(-1)?.phase).toBe('terminal');
       expect(lesson.conceptFlow?.terminalSummary).toBeTruthy();
+      const flow = lesson.conceptFlow!;
+      const nodeIds = flow.nodes.map((node) => node.id);
+      expect(steps.length).toBeGreaterThanOrEqual(7);
+      expect(flow.nodes.every((node) => node.detail)).toBe(true);
+      // Every node is visited by the travelling token at least once.
+      expect(new Set(steps.map((step) => step.token?.nodeId))).toEqual(
+        new Set(nodeIds),
+      );
+      for (const step of steps) {
+        // Narration is written for the lesson, never generated from labels.
+        expect(step.narration.length).toBeGreaterThan(120);
+        expect(step.narration).not.toMatch(/joins the model|establishes the first boundary/);
+        expect(step.token?.label).toBeTruthy();
+      }
+      expect(new Set(steps.map((step) => step.narration)).size).toBe(
+        steps.length,
+      );
+      expect(new Set(steps.map((step) => step.token!.label)).size).toBe(
+        steps.length,
+      );
+      const failure = steps.find((step) => step.phase === 'failure')!;
+      expect(failure.failedNodeIds).toEqual([failure.token!.nodeId]);
+      expect(failure.token!.tone).toBe('error');
+      expect(steps.at(-1)!.completedNodeIds).toEqual(nodeIds);
+      expect(steps.at(-1)!.activeConnectionIndexes).toHaveLength(
+        flow.connections.length,
+      );
     }
+  });
+
+  it('rejects concept flows that point at unknown nodes', () => {
+    const lesson = lessons.find(
+      (item) => item.slug === 'software-systems-map',
+    )!;
+    const original = lesson.conceptFlow!;
+    const broken = structuredClone(original);
+    broken.steps[0].token!.nodeId = 'node-9';
+    broken.steps[1].token!.label = ' ';
+    broken.steps[2].activeConnectionIndexes = [9];
+    broken.steps[3].narration = '';
+    broken.connections[0].to = 'nowhere';
+    lesson.conceptFlow = broken;
+    try {
+      const errors = validateCatalog().join(' | ');
+      expect(errors).toMatch(/concept step 1 unknown node node-9/);
+      expect(errors).toMatch(/concept step 2 empty token label/);
+      expect(errors).toMatch(/concept step 3 connection 9 out of range/);
+      expect(errors).toMatch(/concept step 4 needs a label and a narration/);
+      expect(errors).toMatch(/concept connection to unknown node/);
+    } finally {
+      lesson.conceptFlow = original;
+    }
+    expect(validateCatalog()).toEqual([]);
   });
 
   it('drives the JavaScript execution model with a valid runtime scene', () => {
