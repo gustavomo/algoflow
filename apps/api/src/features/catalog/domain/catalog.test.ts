@@ -80,7 +80,9 @@ describe('catalog', () => {
       for (const step of steps) {
         // Narration is written for the lesson, never generated from labels.
         expect(step.narration.length).toBeGreaterThan(120);
-        expect(step.narration).not.toMatch(/joins the model|establishes the first boundary/);
+        expect(step.narration).not.toMatch(
+          /joins the model|establishes the first boundary/,
+        );
         expect(step.token?.label).toBeTruthy();
       }
       expect(new Set(steps.map((step) => step.narration)).size).toBe(
