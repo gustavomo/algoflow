@@ -72,6 +72,20 @@ export default function PredictChallenge({
     });
   }, []);
 
+  // Answering replaces the buttons (the next question, the watch step or the
+  // summary). When the focused one goes, hand focus to the first live control
+  // in the dock instead of letting it fall back to <body>.
+  const answers = useRef<HTMLDivElement>(null);
+  const focusInDock = useRef(false);
+  useEffect(() => {
+    if (!focusInDock.current) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    answers.current
+      ?.querySelector<HTMLElement>('button:not([aria-disabled="true"])')
+      ?.focus({ preventScroll: true });
+  }, [state.stepIndex, complete]);
+
   const wrong = state.wrongPicks.length > 0;
   return (
     <div data-predict-challenge ref={root}>
@@ -85,6 +99,15 @@ export default function PredictChallenge({
           the scene above them changes. */}
       <div
         ref={dock}
+        onFocus={() => {
+          focusInDock.current = true;
+        }}
+        onBlur={(event) => {
+          const next = event.relatedTarget;
+          focusInDock.current = next
+            ? Boolean(dock.current?.contains(next))
+            : !event.target.isConnected;
+        }}
         className="sticky bottom-[calc(2.5rem+max(.45rem,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t border-line bg-canvas px-4 pb-2 pt-2 sm:bottom-0 sm:mx-0 sm:px-0 sm:pb-1 sm:pt-3"
       >
         <div className="flex items-center justify-between gap-3">
@@ -119,7 +142,7 @@ export default function PredictChallenge({
           />
         </div>
 
-        <div aria-live="polite" className="mt-2 min-h-[5.5rem]">
+        <div ref={answers} aria-live="polite" className="mt-2 min-h-[5.5rem]">
           {complete ? (
             <div data-predict-phase="complete">
               <p className="text-sm font-semibold text-ink">
@@ -152,14 +175,19 @@ export default function PredictChallenge({
                 {challenge.options.map((option, index) => {
                   const tried = state.wrongPicks.includes(index);
                   const right = state.solved && index === challenge.answer;
+                  // aria-disabled, not disabled: a disabled button drops the
+                  // keyboard focus that just picked it.
+                  const inert = tried || state.solved;
                   return (
                     <button
                       key={option}
                       data-predict-option={index}
-                      onClick={() => send({ type: 'PICK', option: index })}
-                      disabled={tried || state.solved}
+                      onClick={() => {
+                        if (!inert) send({ type: 'PICK', option: index });
+                      }}
+                      aria-disabled={inert || undefined}
                       aria-pressed={right}
-                      className={`min-h-11 min-w-[4.5rem] flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
+                      className={`min-h-11 min-w-[4.5rem] flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors aria-disabled:cursor-not-allowed ${
                         right
                           ? 'border-success bg-success-muted text-ink'
                           : tried

@@ -8,6 +8,7 @@ import type {
   VisualizationKind,
 } from '@algoflow/contracts';
 import playbackMachine from '../../lib/xstate/playbackMachine';
+import { targetOwnsKeys } from '../../lib/keyboardTarget';
 import BubbleSortChallenge from './BubbleSortChallenge';
 import ConceptFlowViz from '../animation/ConceptFlowViz';
 import ComplexityViz from '../animation/ComplexityViz';
@@ -81,13 +82,7 @@ export default function LessonVizPlayer({
     // The challenge and the lab drive themselves; only the scene has playback.
     if (mode !== 'scene' || isComplexity) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
-      )
-        return;
+      if (targetOwnsKeys(event.target as HTMLElement | null)) return;
       if (event.code === 'Space') {
         event.preventDefault();
         send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' });

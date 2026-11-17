@@ -168,6 +168,9 @@ describe('RuntimeSceneViz source contract', () => {
     expect(player).toContain("mode !== 'scene'");
     expect(challenge).toContain('<RuntimeSceneViz');
     expect(challenge).toContain("send({ type: 'PICK', option: index })");
+    // Picked answers stay focusable so keyboard focus survives the answer.
+    expect(challenge).toContain('aria-disabled={inert || undefined}');
+    expect(challenge).not.toContain('disabled={tried');
     // Answers are buttons with a touch-sized target, never drag-only.
     expect(challenge).toContain('min-h-11');
     expect(challenge).not.toContain('onDrag');
