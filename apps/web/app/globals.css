@@ -2,29 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/*
+ * Theme tokens. Components only ever read these semantic names (through the
+ * Tailwind colours or `rgb(var(--color-*))`), never raw colours, so another
+ * theme is one more block that redefines the same names, e.g.
+ * `:root[data-theme='light'] { color-scheme: light; --color-canvas: ...; }`.
+ * Values are space-separated RGB channels so Tailwind can apply an alpha.
+ *
+ * Dark theme: a soft charcoal with a slight cool tint instead of pure black.
+ * Off-black keeps white text from glaring and leaves room for two elevation
+ * steps that are told apart by lightness rather than by borders alone.
+ * Contrast against canvas / surface / surface-raised (WCAG 2.1):
+ *   ink 15.3 / 14.2 / 12.8 · ink-soft 11.3 / 10.5 / 9.5 · muted 7.7 / 7.1 / 6.4
+ *   subtle 6.0 / 5.6 / 5.0 (AA body) · faint 4.7 / 4.3 / 3.9 (AA large + UI)
+ */
+:root,
+:root[data-theme='dark'] {
   color-scheme: dark;
-  --color-canvas: 5 5 5;
-  --color-surface: 15 15 15;
-  --color-surface-raised: 24 24 24;
-  --color-ink: 250 250 249;
-  --color-ink-soft: 214 211 209;
-  --color-muted: 168 162 158;
-  --color-subtle: 120 113 108;
-  --color-faint: 87 83 78;
-  --color-line: 45 45 45;
-  --color-line-strong: 87 83 78;
-  --color-action: 250 250 249;
-  --color-action-hover: 231 229 228;
+  /* Elevation: page, cards and panels, then inputs and raised chips. */
+  --color-canvas: 16 18 22; /* #101216 */
+  --color-surface: 23 26 32; /* #171a20 */
+  --color-surface-raised: 31 35 43; /* #1f232b */
+  /* Text, from primary to decorative. */
+  --color-ink: 230 232 236; /* #e6e8ec */
+  --color-ink-soft: 197 201 209; /* #c5c9d1 */
+  --color-muted: 160 166 176; /* #a0a6b0 */
+  --color-subtle: 139 146 158; /* #8b929e */
+  --color-faint: 120 127 140; /* #787f8c */
+  /* Borders: about white at 11% and 24% over the canvas. */
+  --color-line: 42 46 55; /* #2a2e37 */
+  --color-line-strong: 72 78 91; /* #484e5b */
+  --color-action: 230 232 236;
+  --color-action-hover: 205 209 217;
   --color-focus: 255 255 255;
-  --color-success: 134 239 172;
-  --color-warning: 253 224 71;
-  --color-danger: 253 164 175;
-  --color-success-muted: 20 43 29;
-  --color-warning-muted: 50 42 10;
-  --color-danger-muted: 52 23 30;
-  --color-scene-orange: 253 186 116;
-  --color-scene-teal: 94 234 212;
+  /* Status and scene tones, 9:1 or more against every surface. */
+  --color-success: 126 226 168; /* #7ee2a8 */
+  --color-warning: 242 209 92; /* #f2d15c */
+  --color-danger: 255 154 168; /* #ff9aa8 */
+  --color-success-muted: 34 51 45;
+  --color-warning-muted: 52 49 33;
+  --color-danger-muted: 54 40 45;
+  --color-scene-orange: 249 181 114; /* #f9b572 */
+  --color-scene-teal: 95 217 198; /* #5fd9c6 */
 }
 
 * {

@@ -51,8 +51,20 @@ export default function ComplexityViz({
         role="img"
         aria-label={`${snapshot.phase}: ${snapshot.narration}`}
       >
-        <line x1="42" y1="215" x2="610" y2="215" stroke="#57534e" />
-        <line x1="42" y1="16" x2="42" y2="215" stroke="#57534e" />
+        <line
+          x1="42"
+          y1="215"
+          x2="610"
+          y2="215"
+          stroke="rgb(var(--color-line-strong))"
+        />
+        <line
+          x1="42"
+          y1="16"
+          x2="42"
+          y2="215"
+          stroke="rgb(var(--color-line-strong))"
+        />
         {[80, 140, 200].map((y) => (
           <line
             key={y}
@@ -60,7 +72,7 @@ export default function ComplexityViz({
             x2="610"
             y1={y}
             y2={y}
-            stroke="#292524"
+            stroke="rgb(var(--color-line))"
             strokeDasharray="3 8"
           />
         ))}
@@ -73,7 +85,13 @@ export default function ComplexityViz({
               <motion.path
                 d={curve.d}
                 fill="none"
-                stroke={failed ? '#fda4af' : shown ? '#fafaf9' : '#57534e'}
+                stroke={
+                  failed
+                    ? 'rgb(var(--color-danger))'
+                    : shown
+                      ? 'rgb(var(--color-ink))'
+                      : 'rgb(var(--color-line-strong))'
+                }
                 strokeDasharray={curve.dash}
                 strokeWidth={shown ? 3 : 1.5}
                 initial={reduced ? false : { pathLength: 0 }}
@@ -86,7 +104,13 @@ export default function ComplexityViz({
               <text
                 x="548"
                 y={index === 0 ? 195 : index === 1 ? 70 : 24}
-                fill={failed ? '#fda4af' : shown ? '#fafaf9' : '#57534e'}
+                fill={
+                  failed
+                    ? 'rgb(var(--color-danger))'
+                    : shown
+                      ? 'rgb(var(--color-ink))'
+                      : 'rgb(var(--color-faint))'
+                }
                 fontFamily="ui-monospace, monospace"
                 fontSize="13"
               >

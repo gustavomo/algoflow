@@ -75,9 +75,25 @@ function SceneBackdrop({ scene }: { scene: VisualSceneKind }) {
   if (scene === 'vector-space')
     return (
       <g opacity=".55">
-        <line x1="70" y1="270" x2="730" y2="270" stroke="#57534e" />
-        <line x1="90" y1="292" x2="90" y2="28" stroke="#57534e" />
-        <path d="M90 270 L650 58" stroke="#292524" strokeDasharray="4 8" />
+        <line
+          x1="70"
+          y1="270"
+          x2="730"
+          y2="270"
+          stroke="rgb(var(--color-line-strong))"
+        />
+        <line
+          x1="90"
+          y1="292"
+          x2="90"
+          y2="28"
+          stroke="rgb(var(--color-line-strong))"
+        />
+        <path
+          d="M90 270 L650 58"
+          stroke="rgb(var(--color-line))"
+          strokeDasharray="4 8"
+        />
       </g>
     );
   if (scene === 'migration-timeline')
@@ -88,16 +104,22 @@ function SceneBackdrop({ scene }: { scene: VisualSceneKind }) {
           y1="175"
           x2="745"
           y2="175"
-          stroke="#57534e"
+          stroke="rgb(var(--color-line-strong))"
           strokeWidth="2"
         />
         <path
           d="M470 175 C520 260 610 260 660 175"
           fill="none"
-          stroke="#57534e"
+          stroke="rgb(var(--color-line-strong))"
           strokeDasharray="7 6"
         />
-        <text x="560" y="260" textAnchor="middle" fill="#78716c" fontSize="10">
+        <text
+          x="560"
+          y="260"
+          textAnchor="middle"
+          fill="rgb(var(--color-subtle))"
+          fontSize="10"
+        >
           rollback lane
         </text>
       </g>
@@ -107,7 +129,7 @@ function SceneBackdrop({ scene }: { scene: VisualSceneKind }) {
       <path
         d="M30 245 C170 45 285 250 420 90 C540 -15 650 255 770 55"
         fill="none"
-        stroke="#292524"
+        stroke="rgb(var(--color-line))"
         strokeWidth="28"
         strokeLinecap="round"
       />
@@ -119,7 +141,7 @@ function SceneBackdrop({ scene }: { scene: VisualSceneKind }) {
         cy="165"
         r="145"
         fill="none"
-        stroke="#292524"
+        stroke="rgb(var(--color-line))"
         strokeDasharray="4 8"
       />
     );
@@ -148,14 +170,22 @@ function SceneNode({
   reduced: boolean;
 }) {
   const stroke = failed
-    ? '#fda4af'
+    ? 'rgb(var(--color-danger))'
     : active
-      ? '#fafaf9'
+      ? 'rgb(var(--color-ink))'
       : completed
-        ? '#a8a29e'
-        : '#57534e';
-  const fill = active ? '#fafaf9' : completed ? '#292929' : '#101010';
-  const text = active ? '#050505' : failed ? '#fda4af' : '#e7e5e4';
+        ? 'rgb(var(--color-muted))'
+        : 'rgb(var(--color-line-strong))';
+  const fill = active
+    ? 'rgb(var(--color-ink))'
+    : completed
+      ? 'rgb(var(--color-line))'
+      : 'rgb(var(--color-surface))';
+  const text = active
+    ? 'rgb(var(--color-canvas))'
+    : failed
+      ? 'rgb(var(--color-danger))'
+      : 'rgb(var(--color-ink-soft))';
   const common = {
     animate: {
       opacity: active || completed || failed ? 1 : 0.42,
@@ -322,7 +352,7 @@ function SceneNode({
         x={point.x}
         y={point.y + 58}
         textAnchor="middle"
-        fill="#78716c"
+        fill="rgb(var(--color-subtle))"
         fontSize="8"
         letterSpacing="1.2"
       >
@@ -388,7 +418,11 @@ export default function ConceptFlowViz({
               key={`${connection.from}-${connection.to}`}
               d={connectionPath(points[fromIndex], points[toIndex])}
               fill="none"
-              stroke={highlighted ? '#fafaf9' : '#57534e'}
+              stroke={
+                highlighted
+                  ? 'rgb(var(--color-ink))'
+                  : 'rgb(var(--color-line-strong))'
+              }
               strokeWidth={highlighted ? 3 : 1.5}
               strokeDasharray={highlighted ? undefined : '7 7'}
               initial={false}

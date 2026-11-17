@@ -69,25 +69,25 @@ export default function GridTraversalViz({
                   rx={wall ? 3 : 20}
                   fill={
                     wall
-                      ? '#292524'
+                      ? 'rgb(var(--color-line))'
                       : current
-                        ? '#fafaf9'
+                        ? 'rgb(var(--color-ink))'
                         : isPath
-                          ? '#44403c'
+                          ? 'rgb(var(--color-line-strong))'
                           : visited.has(index)
-                            ? '#292929'
+                            ? 'rgb(var(--color-line))'
                             : discovered
-                              ? '#181818'
-                              : '#0a0a0a'
+                              ? 'rgb(var(--color-surface-raised))'
+                              : 'rgb(var(--color-canvas))'
                   }
                   stroke={
                     current
-                      ? '#fafaf9'
+                      ? 'rgb(var(--color-ink))'
                       : isPath
-                        ? '#fafaf9'
+                        ? 'rgb(var(--color-ink))'
                         : discovered
-                          ? '#d6d3d1'
-                          : '#57534e'
+                          ? 'rgb(var(--color-ink-soft))'
+                          : 'rgb(var(--color-line-strong))'
                   }
                   strokeWidth={current || isPath ? 3 : 1}
                   strokeDasharray={discovered && !current ? '4 3' : undefined}
@@ -96,7 +96,13 @@ export default function GridTraversalViz({
                   x={x + 20}
                   y={y + 24}
                   textAnchor="middle"
-                  fill={current ? '#050505' : wall ? '#57534e' : '#d6d3d1'}
+                  fill={
+                    current
+                      ? 'rgb(var(--color-canvas))'
+                      : wall
+                        ? 'rgb(var(--color-faint))'
+                        : 'rgb(var(--color-ink-soft))'
+                  }
                   fontSize="10"
                   fontFamily="ui-monospace, monospace"
                 >

@@ -41,7 +41,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={href}
                 href={href}
-                className="whitespace-nowrap rounded-lg px-3 py-2 transition hover:bg-surface hover:text-white"
+                className="whitespace-nowrap rounded-lg px-3 py-2 transition hover:bg-surface hover:text-ink"
               >
                 {label}
               </Link>

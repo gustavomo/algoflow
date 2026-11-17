@@ -7,7 +7,7 @@ export default function LandingPage() {
         <span className="font-semibold">AlgoFlow</span>
         <Link
           href="/access"
-          className="rounded-full border border-line-strong px-4 py-2 text-sm text-ink-soft transition hover:border-line-strong hover:text-white"
+          className="rounded-full border border-line-strong px-4 py-2 text-sm text-ink-soft transition hover:border-line-strong hover:text-ink"
         >
           Personal access
         </Link>

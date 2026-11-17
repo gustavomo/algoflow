@@ -38,11 +38,11 @@ export default async function LessonPage({
   return (
     <AppShell>
       <div className="flex flex-wrap items-center gap-2 text-sm text-subtle">
-        <Link href="/lessons" className="hover:text-white">
+        <Link href="/lessons" className="hover:text-ink">
           Lessons
         </Link>
         <span>/</span>
-        <Link href={`/topics/${topic.slug}`} className="hover:text-white">
+        <Link href={`/topics/${topic.slug}`} className="hover:text-ink">
           {topic.title}
         </Link>
         <span>/</span>

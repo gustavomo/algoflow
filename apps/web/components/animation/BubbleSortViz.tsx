@@ -121,12 +121,12 @@ export default function BubbleSortViz({
       >
         <defs>
           <linearGradient id="bar-idle" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#3f3f46" />
-            <stop offset="1" stopColor="#18181b" />
+            <stop stopColor="rgb(var(--color-line-strong))" />
+            <stop offset="1" stopColor="rgb(var(--color-surface-raised))" />
           </linearGradient>
           <linearGradient id="bar-active" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#fafaf9" />
-            <stop offset="1" stopColor="#78716c" />
+            <stop stopColor="rgb(var(--color-ink))" />
+            <stop offset="1" stopColor="rgb(var(--color-subtle))" />
           </linearGradient>
           <pattern
             id="bar-sorted"
@@ -135,8 +135,8 @@ export default function BubbleSortViz({
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(45)"
           >
-            <rect width="8" height="8" fill="#52525b" />
-            <rect width="3" height="8" fill="#a1a1aa" />
+            <rect width="8" height="8" fill="rgb(var(--color-line-strong))" />
+            <rect width="3" height="8" fill="rgb(var(--color-muted))" />
           </pattern>
         </defs>
         {[0, 1, 2, 3].map((line) => (
@@ -146,7 +146,7 @@ export default function BubbleSortViz({
             x2="650"
             y1={80 + line * 56}
             y2={80 + line * 56}
-            stroke="#fafaf9"
+            stroke="rgb(var(--color-ink))"
             strokeOpacity="0.055"
             strokeDasharray="4 8"
           />
@@ -156,7 +156,7 @@ export default function BubbleSortViz({
           x2="660"
           y1="282"
           y2="282"
-          stroke="#a8a29e"
+          stroke="rgb(var(--color-muted))"
           strokeOpacity="0.25"
         />
         {snapshot.items.map((item, index) => {
@@ -255,7 +255,7 @@ export default function BubbleSortViz({
                     width={barWidth + 16}
                     height={218}
                     rx={14}
-                    fill="#fafaf9"
+                    fill="rgb(var(--color-ink))"
                     initial={{ opacity: 0 }}
                     animate={{
                       opacity: tutorFocused
@@ -282,10 +282,10 @@ export default function BubbleSortViz({
                   transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
                   stroke={
                     selected || active || tutorFocused
-                      ? '#ffffff'
+                      ? 'rgb(var(--color-ink))'
                       : sorted
-                        ? '#d6d3d1'
-                        : '#57534e'
+                        ? 'rgb(var(--color-ink-soft))'
+                        : 'rgb(var(--color-line-strong))'
                   }
                   strokeWidth={selected ? 4 : tutorFocused ? 3 : 1}
                   strokeOpacity={
@@ -296,7 +296,13 @@ export default function BubbleSortViz({
                   x={barWidth / 2}
                   y={306}
                   textAnchor="middle"
-                  fill={active ? '#ffffff' : sorted ? '#d6d3d1' : '#78716c'}
+                  fill={
+                    active
+                      ? 'rgb(var(--color-ink))'
+                      : sorted
+                        ? 'rgb(var(--color-ink-soft))'
+                        : 'rgb(var(--color-subtle))'
+                  }
                   fontFamily="ui-monospace, monospace"
                   fontSize="15"
                 >
@@ -307,7 +313,7 @@ export default function BubbleSortViz({
                     x={barWidth / 2}
                     y={68}
                     textAnchor="middle"
-                    fill="#fafaf9"
+                    fill="rgb(var(--color-ink))"
                     fontFamily="ui-monospace, monospace"
                     fontSize="10"
                     letterSpacing="1"
@@ -331,7 +337,7 @@ export default function BubbleSortViz({
             animate={{ opacity: 1, pathLength: 1 }}
             d={`M ${bubbleBarX(layout, snapshot.compared[0]) + barWidth / 2} 52 Q ${WIDTH / 2} 18 ${bubbleBarX(layout, snapshot.compared[1]) + barWidth / 2} 52`}
             fill="none"
-            stroke="#ffffff"
+            stroke="rgb(var(--color-ink))"
             strokeWidth="2"
             strokeDasharray="5 6"
           />
@@ -341,7 +347,7 @@ export default function BubbleSortViz({
             x={WIDTH / 2}
             y="20"
             textAnchor="middle"
-            fill="#fafaf9"
+            fill="rgb(var(--color-ink))"
             fontFamily="ui-monospace, monospace"
             fontSize="10"
             letterSpacing="2"
@@ -354,7 +360,7 @@ export default function BubbleSortViz({
             x={WIDTH / 2}
             y="326"
             textAnchor="middle"
-            fill="#a8a29e"
+            fill="rgb(var(--color-muted))"
             fontFamily="ui-monospace, monospace"
             fontSize="9"
             letterSpacing="1"

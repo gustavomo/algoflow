@@ -82,20 +82,24 @@ export default function TwoPointersViz({
                   animate={{
                     opacity: discarded ? 0.28 : 1,
                     y: changing && !reducedMotion ? -5 : 0,
-                    borderColor:
-                      snapshot.phase === 'failure' && active.has(index)
-                        ? '#fda4af'
-                        : best.has(index) && snapshot.phase === 'terminal'
-                          ? '#86efac'
-                          : active.has(index)
-                            ? '#fafaf9'
-                            : '#44403c',
-                    backgroundColor: active.has(index)
-                      ? 'rgba(250,250,249,.1)'
-                      : 'rgba(255,255,255,.01)',
                   }}
                   transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
-                  className={`grid h-14 place-items-center border-y font-mono text-sm sm:text-base ${discarded ? 'line-through' : ''}`}
+                  // Theme tokens are CSS variables, which framer-motion cannot
+                  // tween, so the colours change through a CSS transition.
+                  style={{
+                    borderColor:
+                      snapshot.phase === 'failure' && active.has(index)
+                        ? 'rgb(var(--color-danger))'
+                        : best.has(index) && snapshot.phase === 'terminal'
+                          ? 'rgb(var(--color-success))'
+                          : active.has(index)
+                            ? 'rgb(var(--color-ink))'
+                            : 'rgb(var(--color-line-strong))',
+                    backgroundColor: active.has(index)
+                      ? 'rgb(var(--color-ink) / 0.1)'
+                      : 'rgb(var(--color-ink) / 0.01)',
+                  }}
+                  className={`grid h-14 place-items-center border-y font-mono text-sm transition-colors duration-300 sm:text-base ${discarded ? 'line-through' : ''}`}
                 >
                   {value}
                 </motion.div>
