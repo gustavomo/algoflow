@@ -29,7 +29,7 @@ export default async function TopicPage({
   );
   return (
     <AppShell>
-      <Link href="/topics" className="text-sm text-subtle hover:text-white">
+      <Link href="/topics" className="text-sm text-subtle hover:text-ink">
         ← All topics
       </Link>
       <p className="mt-8 font-mono text-xs uppercase tracking-[0.28em] text-ink">

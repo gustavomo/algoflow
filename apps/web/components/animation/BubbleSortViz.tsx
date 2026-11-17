@@ -1,10 +1,21 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import { useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type { BubbleSortSnapshot } from '@algoflow/learning-engine';
+import {
+  BUBBLE_VIEW_WIDTH,
+  bubbleBarLayout,
+  bubbleBarX,
+  clampBarDrag,
+  dragSwapNeighbor,
+} from '../../lib/animation/bubbleSortLayout';
 
-const WIDTH = 720;
+const WIDTH = BUBBLE_VIEW_WIDTH;
 const HEIGHT = 330;
+// Pointer travel (in SVG units) after which a press counts as a drag.
+const DRAG_THRESHOLD = 6;
 
 export default function BubbleSortViz({
   snapshot,
@@ -23,16 +34,32 @@ export default function BubbleSortViz({
   onSelectItem?: (itemId: string) => void;
   onSwapIntent?: (itemIds: [string, string]) => void;
 }) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useHydratedReducedMotion();
   const max = Math.max(...snapshot.items.map((item) => item.value), 1);
-  const barWidth = Math.min(72, 470 / snapshot.items.length);
-  const gap = 20;
-  const groupWidth =
-    snapshot.items.length * barWidth + (snapshot.items.length - 1) * gap;
-  const startX = (WIDTH - groupWidth) / 2;
+  const layout = bubbleBarLayout(snapshot.items.length);
+  const { barWidth } = layout;
+  const draggable = Boolean(onSwapIntent) && !reducedMotion;
+  // Dragging is handled with pointer events on an inner <g>. framer-motion's
+  // `drag` must not be used here: it attaches a layout projection node whose
+  // reset writes `transform: none` on the SVG group and erases the animated x.
+  const gesture = useRef<{
+    itemId: string;
+    startX: number;
+    scale: number;
+    offset: number;
+  } | null>(null);
+  const suppressClick = useRef(false);
+  const [dragging, setDragging] = useState<{
+    itemId: string;
+    offset: number;
+  } | null>(null);
+  const endGesture = () => {
+    gesture.current = null;
+    setDragging(null);
+  };
 
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-2xl shadow-black/40">
+    <div className="overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-elevated">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4 font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
         <span>
           Bubble Sort ·{' '}
@@ -95,12 +122,12 @@ export default function BubbleSortViz({
       >
         <defs>
           <linearGradient id="bar-idle" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#3f3f46" />
-            <stop offset="1" stopColor="#18181b" />
+            <stop stopColor="rgb(var(--color-line-strong))" />
+            <stop offset="1" stopColor="rgb(var(--color-surface-raised))" />
           </linearGradient>
           <linearGradient id="bar-active" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#fafaf9" />
-            <stop offset="1" stopColor="#78716c" />
+            <stop stopColor="rgb(var(--color-ink))" />
+            <stop offset="1" stopColor="rgb(var(--color-subtle))" />
           </linearGradient>
           <pattern
             id="bar-sorted"
@@ -109,8 +136,8 @@ export default function BubbleSortViz({
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(45)"
           >
-            <rect width="8" height="8" fill="#52525b" />
-            <rect width="3" height="8" fill="#a1a1aa" />
+            <rect width="8" height="8" fill="rgb(var(--color-line-strong))" />
+            <rect width="3" height="8" fill="rgb(var(--color-muted))" />
           </pattern>
         </defs>
         {[0, 1, 2, 3].map((line) => (
@@ -120,7 +147,7 @@ export default function BubbleSortViz({
             x2="650"
             y1={80 + line * 56}
             y2={80 + line * 56}
-            stroke="#fafaf9"
+            stroke="rgb(var(--color-ink))"
             strokeOpacity="0.055"
             strokeDasharray="4 8"
           />
@@ -130,7 +157,7 @@ export default function BubbleSortViz({
           x2="660"
           y1="282"
           y2="282"
-          stroke="#a8a29e"
+          stroke="rgb(var(--color-muted))"
           strokeOpacity="0.25"
         />
         {snapshot.items.map((item, index) => {
@@ -139,24 +166,19 @@ export default function BubbleSortViz({
           const tutorFocused = tutorItemIds.includes(item.id);
           const sorted = index >= snapshot.sortedFrom;
           const barHeight = 45 + (item.value / max) * 150;
-          const targetX = startX + index * (barWidth + gap);
+          const dragOffset = dragging?.itemId === item.id ? dragging.offset : 0;
           return (
             <motion.g
               key={item.id}
               initial={false}
-              animate={{ x: targetX }}
-              drag={onSwapIntent && !reducedMotion ? 'x' : false}
-              dragConstraints={{ left: -gap - barWidth, right: gap + barWidth }}
-              dragElastic={0.12}
-              dragSnapToOrigin
-              onDragEnd={(_, info) => {
-                if (!onSwapIntent || Math.abs(info.offset.x) < barWidth / 2)
+              animate={{ x: bubbleBarX(layout, index) }}
+              onClick={() => {
+                if (suppressClick.current) {
+                  suppressClick.current = false;
                   return;
-                const neighborIndex = info.offset.x > 0 ? index + 1 : index - 1;
-                const neighbor = snapshot.items[neighborIndex];
-                if (neighbor) onSwapIntent([item.id, neighbor.id]);
+                }
+                onSelectItem?.(item.id);
               }}
-              onClick={() => onSelectItem?.(item.id)}
               onKeyDown={(event) => {
                 if (!onSelectItem) return;
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -178,79 +200,135 @@ export default function BubbleSortViz({
                   : { type: 'spring', stiffness: 260, damping: 28 }
               }
             >
-              {(active || tutorFocused) && !reducedMotion && (
-                <motion.rect
-                  x={-8}
-                  y={73}
-                  width={barWidth + 16}
-                  height={218}
-                  rx={14}
-                  fill="#fafaf9"
-                  initial={{ opacity: 0 }}
-                  animate={{
-                    opacity: tutorFocused
-                      ? [0.06, 0.16, 0.06]
-                      : [0.03, 0.11, 0.03],
-                  }}
-                  transition={{ repeat: Infinity, duration: 1.2 }}
-                />
-              )}
-              <motion.rect
-                x={0}
-                width={barWidth}
-                rx={10}
-                initial={false}
-                animate={{
-                  y: 282 - barHeight,
-                  height: barHeight,
-                  fill: sorted
-                    ? 'url(#bar-sorted)'
-                    : active
-                      ? 'url(#bar-active)'
-                      : 'url(#bar-idle)',
+              <g
+                data-bar={item.id}
+                transform={`translate(${dragOffset} 0)`}
+                style={
+                  draggable
+                    ? { touchAction: 'pan-y', cursor: 'grab' }
+                    : onSelectItem
+                      ? { cursor: 'pointer' }
+                      : undefined
+                }
+                onPointerDown={(event) => {
+                  if (!draggable) return;
+                  const svg = event.currentTarget.ownerSVGElement;
+                  const width = svg?.getBoundingClientRect().width ?? 0;
+                  suppressClick.current = false;
+                  gesture.current = {
+                    itemId: item.id,
+                    startX: event.clientX,
+                    scale: width > 0 ? WIDTH / width : 1,
+                    offset: 0,
+                  };
+                  event.currentTarget.setPointerCapture?.(event.pointerId);
                 }}
-                transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
-                stroke={
-                  selected || active || tutorFocused
-                    ? '#ffffff'
-                    : sorted
-                      ? '#d6d3d1'
-                      : '#57534e'
-                }
-                strokeWidth={selected ? 4 : tutorFocused ? 3 : 1}
-                strokeOpacity={
-                  selected || active || tutorFocused || sorted ? 0.7 : 0.25
-                }
-              />
-              <text
-                x={barWidth / 2}
-                y={306}
-                textAnchor="middle"
-                fill={active ? '#ffffff' : sorted ? '#d6d3d1' : '#78716c'}
-                fontFamily="ui-monospace, monospace"
-                fontSize="15"
+                onPointerMove={(event) => {
+                  const current = gesture.current;
+                  if (!current || current.itemId !== item.id) return;
+                  current.offset = clampBarDrag(
+                    layout,
+                    (event.clientX - current.startX) * current.scale,
+                  );
+                  if (Math.abs(current.offset) >= DRAG_THRESHOLD)
+                    suppressClick.current = true;
+                  setDragging({ itemId: item.id, offset: current.offset });
+                }}
+                onPointerUp={() => {
+                  const current = gesture.current;
+                  if (!current || current.itemId !== item.id) return;
+                  const neighborIndex = dragSwapNeighbor(
+                    layout,
+                    index,
+                    current.offset,
+                    snapshot.items.length,
+                  );
+                  endGesture();
+                  if (neighborIndex !== null)
+                    onSwapIntent?.([item.id, snapshot.items[neighborIndex].id]);
+                }}
+                onPointerCancel={endGesture}
               >
-                {item.value}
-              </text>
-              {(selected || active || tutorFocused || sorted) && (
+                {(active || tutorFocused) && !reducedMotion && (
+                  <motion.rect
+                    x={-8}
+                    y={73}
+                    width={barWidth + 16}
+                    height={218}
+                    rx={14}
+                    fill="rgb(var(--color-ink))"
+                    initial={{ opacity: 0 }}
+                    animate={{
+                      opacity: tutorFocused
+                        ? [0.06, 0.16, 0.06]
+                        : [0.03, 0.11, 0.03],
+                    }}
+                    transition={{ repeat: Infinity, duration: 1.2 }}
+                  />
+                )}
+                <motion.rect
+                  x={0}
+                  width={barWidth}
+                  rx={10}
+                  initial={false}
+                  animate={{
+                    y: 282 - barHeight,
+                    height: barHeight,
+                    fill: sorted
+                      ? 'url(#bar-sorted)'
+                      : active
+                        ? 'url(#bar-active)'
+                        : 'url(#bar-idle)',
+                  }}
+                  transition={{ duration: reducedMotion ? 0.01 : 0.28 }}
+                  stroke={
+                    selected || active || tutorFocused
+                      ? 'rgb(var(--color-ink))'
+                      : sorted
+                        ? 'rgb(var(--color-ink-soft))'
+                        : 'rgb(var(--color-line-strong))'
+                  }
+                  strokeWidth={selected ? 4 : tutorFocused ? 3 : 1}
+                  strokeOpacity={
+                    selected || active || tutorFocused || sorted ? 0.7 : 0.25
+                  }
+                />
                 <text
                   x={barWidth / 2}
-                  y={68}
+                  y={306}
                   textAnchor="middle"
-                  fill="#fafaf9"
+                  fill={
+                    active
+                      ? 'rgb(var(--color-ink))'
+                      : sorted
+                        ? 'rgb(var(--color-ink-soft))'
+                        : 'rgb(var(--color-subtle))'
+                  }
                   fontFamily="ui-monospace, monospace"
-                  fontSize="10"
-                  letterSpacing="1"
+                  fontSize="15"
                 >
-                  {selected
-                    ? 'SELECTED'
-                    : tutorFocused
-                      ? 'TUTOR FOCUS'
-                      : active
-                        ? 'ACTIVE'
-                        : 'SETTLED'}
+                  {item.value}
                 </text>
-              )}
+                {(selected || active || tutorFocused || sorted) && (
+                  <text
+                    x={barWidth / 2}
+                    y={68}
+                    textAnchor="middle"
+                    fill="rgb(var(--color-ink))"
+                    fontFamily="ui-monospace, monospace"
+                    fontSize="10"
+                    letterSpacing="1"
+                  >
+                    {selected
+                      ? 'SELECTED'
+                      : tutorFocused
+                        ? 'TUTOR FOCUS'
+                        : active
+                          ? 'ACTIVE'
+                          : 'SETTLED'}
+                  </text>
+                )}
+              </g>
             </motion.g>
           );
         })}
@@ -258,9 +336,9 @@ export default function BubbleSortViz({
           <motion.path
             initial={reducedMotion ? false : { opacity: 0, pathLength: 0 }}
             animate={{ opacity: 1, pathLength: 1 }}
-            d={`M ${startX + snapshot.compared[0] * (barWidth + gap) + barWidth / 2} 52 Q ${WIDTH / 2} 18 ${startX + snapshot.compared[1] * (barWidth + gap) + barWidth / 2} 52`}
+            d={`M ${bubbleBarX(layout, snapshot.compared[0]) + barWidth / 2} 52 Q ${WIDTH / 2} 18 ${bubbleBarX(layout, snapshot.compared[1]) + barWidth / 2} 52`}
             fill="none"
-            stroke="#ffffff"
+            stroke="rgb(var(--color-ink))"
             strokeWidth="2"
             strokeDasharray="5 6"
           />
@@ -270,7 +348,7 @@ export default function BubbleSortViz({
             x={WIDTH / 2}
             y="20"
             textAnchor="middle"
-            fill="#fafaf9"
+            fill="rgb(var(--color-ink))"
             fontFamily="ui-monospace, monospace"
             fontSize="10"
             letterSpacing="2"
@@ -283,7 +361,7 @@ export default function BubbleSortViz({
             x={WIDTH / 2}
             y="326"
             textAnchor="middle"
-            fill="#a8a29e"
+            fill="rgb(var(--color-muted))"
             fontFamily="ui-monospace, monospace"
             fontSize="9"
             letterSpacing="1"

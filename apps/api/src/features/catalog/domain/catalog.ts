@@ -1,6 +1,5 @@
 import type {
   AssessmentDefinition,
-  ConceptFlowNarrative,
   CurriculumDomain,
   LearningLevel,
   LearningPathDefinition,
@@ -12,7 +11,39 @@ import type {
   TopicDefinition,
   VisualSceneKind,
 } from '@algoflow/contracts';
-import { isLearningResource } from '@algoflow/contracts';
+import {
+  RUNTIME_SCENE_ACTION_MAX_LENGTH,
+  RUNTIME_SCENE_ACTION_TONES,
+  RUNTIME_SCENE_CELL_STATES,
+  RUNTIME_SCENE_DATA_REGION_KINDS,
+  RUNTIME_SCENE_MAX_GENERATED_STEPS,
+  RUNTIME_SCENE_MAX_STEPS,
+  RUNTIME_SCENE_PLOT_MAX_POINTS,
+  RUNTIME_SCENE_TABLE_MAX_COLUMNS,
+  RUNTIME_SCENE_TABLE_MAX_ROWS,
+  isLearningResource,
+} from '@algoflow/contracts';
+import {
+  bfsRuntimeScene,
+  bubbleSortRuntimeScene,
+  dfsRuntimeScene,
+  slidingWindowRuntimeScene,
+  twoPointersRuntimeScene,
+} from './algorithmScenes';
+import {
+  activeReadingFlow,
+  crossTeamChangeFlow,
+  staffImpactFlow,
+  systemsMapFlow,
+  technicalStrategyFlow,
+} from './conceptFlows';
+import {
+  agentLoopRuntimeScene,
+  cdnRuntimeScene,
+  containersRuntimeScene,
+  relationalRuntimeScene,
+  vectorRuntimeScene,
+} from './conceptScenes';
 import {
   asyncRuntimeScene,
   closuresRuntimeScene,
@@ -21,6 +52,7 @@ import {
   narrowingRuntimeScene,
   negativeSpaceRuntimeScene,
   nestPipelineRuntimeScene,
+  withActions,
 } from './runtimeScenes';
 import {
   buildAssessmentCatalog,
@@ -280,84 +312,7 @@ export const topics: TopicDefinition[] = [
   },
 ];
 
-function conceptFlow(
-  scene: VisualSceneKind,
-  labels: string[],
-  metric: string,
-  failureNarration: string,
-  recoveryNarration: string,
-  terminalSummary: string,
-): ConceptFlowNarrative {
-  const ids = labels.map((_, index) => `node-${index + 1}`);
-  return {
-    version: 1,
-    scene,
-    nodes: labels.map((label, index) => ({ id: `node-${index + 1}`, label })),
-    connections: labels.slice(1).map((_, index) => ({
-      from: `node-${index + 1}`,
-      to: `node-${index + 2}`,
-    })),
-    steps: [
-      {
-        id: 'initial',
-        phase: 'initial',
-        label: `Start with ${labels[0]}`,
-        narration: `${labels[0]} establishes the first boundary in the model.`,
-        metric,
-        activeNodeIds: [ids[0]],
-        completedNodeIds: [],
-        activeConnectionIndexes: [],
-      },
-      ...labels.slice(1).map((label, offset) => {
-        const index = offset + 1;
-        return {
-          id: `transition-${index}`,
-          phase: 'transition' as const,
-          label: `Connect ${label}`,
-          narration: `${label} joins the model through an explicit responsibility and connection.`,
-          metric,
-          activeNodeIds: [ids[index]],
-          completedNodeIds: ids.slice(0, index),
-          activeConnectionIndexes: [index - 1],
-        };
-      }),
-      {
-        id: 'failure',
-        phase: 'failure',
-        label: 'Inspect the failure boundary',
-        narration: failureNarration,
-        metric,
-        activeNodeIds: [],
-        completedNodeIds: ids.slice(0, -1),
-        failedNodeIds: [ids.at(-1)!],
-        activeConnectionIndexes: [Math.max(0, labels.length - 2)],
-      },
-      {
-        id: 'recovery',
-        phase: 'recovery',
-        label: 'Restore the invariant',
-        narration: recoveryNarration,
-        metric,
-        activeNodeIds: [ids.at(-1)!],
-        completedNodeIds: ids.slice(0, -1),
-        activeConnectionIndexes: [Math.max(0, labels.length - 2)],
-      },
-      {
-        id: 'terminal',
-        phase: 'terminal',
-        label: 'Complete causal model',
-        narration: terminalSummary,
-        metric,
-        activeNodeIds: [],
-        completedNodeIds: ids,
-        activeConnectionIndexes: labels.slice(1).map((_, index) => index),
-      },
-    ],
-    terminalSummary,
-  };
-}
-
-const eventLoopScene: RuntimeScene = {
+const eventLoopSteps: RuntimeScene = {
   code: {
     language: 'javascript',
     lines: [
@@ -563,7 +518,6 @@ const eventLoopScene: RuntimeScene = {
       ],
       output: ['Start', 'End', 'Promise', 'Timeout'],
       activeRegionIds: ['task-queue', 'call-stack', 'console'],
-      eventLoop: 'checking',
     },
     {
       label: 'Every queue is empty',
@@ -575,6 +529,19 @@ const eventLoopScene: RuntimeScene = {
     },
   ],
 };
+
+const eventLoopScene = withActions(eventLoopSteps, [
+  ['push script → call stack', 'swap'],
+  ["log('Start') → prints now", 'ok'],
+  ['setTimeout(cb, 0) → Web API timer', 'swap'],
+  ['timer 0 ms done → task queue', 'swap'],
+  ['.then(cb) → microtask queue', 'swap'],
+  ["log('End') → prints now", 'ok'],
+  ['stack empty ? → microtasks first', 'compare'],
+  ["microtask → log('Promise')", 'ok'],
+  ["task → log('Timeout')", 'ok'],
+  ['Start, End, Promise, Timeout', 'ok'],
+]);
 
 export const lessons: LessonDefinition[] = [
   {
@@ -602,8 +569,11 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'sorting',
     conceptIds: ['adjacent-comparison', 'sorting-invariant'],
     estimatedMinutes: 18,
+    // Keeps its own kind: besides the scene and its predict-first challenge,
+    // the player offers the hands-on tutor lab that only this lesson has.
     visualization: 'bubble-sort',
     codeLanguage: 'javascript',
+    runtimeScene: bubbleSortRuntimeScene,
     assessmentSlug: 'bubble-sort-checkpoint',
     prerequisites: ['complexity-basics-js'],
   },
@@ -617,8 +587,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'array-patterns',
     conceptIds: ['pointer-invariant', 'linear-scan'],
     estimatedMinutes: 16,
-    visualization: 'two-pointers',
+    visualization: 'runtime-scene',
     codeLanguage: 'javascript',
+    runtimeScene: twoPointersRuntimeScene,
     assessmentSlug: 'two-pointers-checkpoint',
     prerequisites: ['complexity-basics-js'],
   },
@@ -632,8 +603,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'array-patterns',
     conceptIds: ['window-invariant', 'incremental-state'],
     estimatedMinutes: 20,
-    visualization: 'sliding-window',
+    visualization: 'runtime-scene',
     codeLanguage: 'typescript',
+    runtimeScene: slidingWindowRuntimeScene,
     assessmentSlug: 'sliding-window-checkpoint',
     prerequisites: ['two-pointers-js'],
   },
@@ -647,8 +619,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'graphs',
     conceptIds: ['queue-frontier', 'visited-set'],
     estimatedMinutes: 22,
-    visualization: 'bfs-grid',
+    visualization: 'runtime-scene',
     codeLanguage: 'go',
+    runtimeScene: bfsRuntimeScene,
     assessmentSlug: 'bfs-grid-checkpoint',
     prerequisites: ['complexity-basics-js'],
   },
@@ -662,8 +635,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'graphs',
     conceptIds: ['stack-frontier', 'visited-set'],
     estimatedMinutes: 20,
-    visualization: 'dfs-grid',
+    visualization: 'runtime-scene',
     codeLanguage: 'go',
+    runtimeScene: dfsRuntimeScene,
     assessmentSlug: 'dfs-grid-checkpoint',
     prerequisites: ['bfs-grid-go'],
   },
@@ -678,14 +652,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['system-boundaries', 'feedback-loop'],
     estimatedMinutes: 18,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'system-boundaries',
-      ['User interface', 'Application service', 'Data store', 'Observability'],
-      'One request, four responsibilities',
-      'Without operational feedback, a request can fail after the data boundary while the team sees only a vague symptom.',
-      'Observability closes the feedback loop by connecting behavior, evidence, and the responsible boundary.',
-      'The system is complete when the user action, service contract, durable state, and operational feedback form one inspectable loop.',
-    ),
+    conceptFlow: systemsMapFlow,
     assessmentSlug: 'software-systems-checkpoint',
     prerequisites: [],
   },
@@ -715,15 +682,8 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'distributed-systems',
     conceptIds: ['cache-boundary', 'origin-fallback'],
     estimatedMinutes: 22,
-    visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'cdn-route',
-      ['Client', 'DNS', 'CDN edge', 'Origin'],
-      'Latency falls near the user',
-      'A cache miss at the edge cannot produce content locally and must cross the longer path to the origin.',
-      'The origin response fills the edge cache so the next equivalent request terminates near the client.',
-      'The route is complete when DNS selects the edge, hits terminate locally, and misses visibly fall back to the origin.',
-    ),
+    visualization: 'runtime-scene',
+    runtimeScene: cdnRuntimeScene,
     assessmentSlug: 'request-cdn-checkpoint',
     prerequisites: [],
   },
@@ -737,16 +697,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'relational-data',
     conceptIds: ['primary-key', 'foreign-key'],
     estimatedMinutes: 22,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'sql',
-    conceptFlow: conceptFlow(
-      'relational-schema',
-      ['Entity', 'Primary key', 'Relationship', 'Constraint'],
-      'Integrity before convenience',
-      'A relationship without an enforced constraint permits an orphan reference that the model claims cannot exist.',
-      'A foreign-key constraint rejects the invalid transition and restores referential integrity.',
-      'The model is complete when identity, relationships, and constraints make invalid states unrepresentable at the database boundary.',
-    ),
+    runtimeScene: relationalRuntimeScene,
     assessmentSlug: 'relational-modeling-checkpoint',
     prerequisites: [],
   },
@@ -760,15 +713,8 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'containers',
     conceptIds: ['image-layer', 'container-runtime'],
     estimatedMinutes: 18,
-    visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'container-layers',
-      ['Source', 'Image layers', 'Container', 'Runtime boundary'],
-      'Build once, run consistently',
-      'Mutating a running container as if it were the image creates drift that cannot be reproduced from source.',
-      'Rebuild immutable layers and recreate the container so runtime state returns to the declared artifact.',
-      'The lifecycle is complete when source produces immutable layers and the disposable runtime remains inside an explicit boundary.',
-    ),
+    visualization: 'runtime-scene',
+    runtimeScene: containersRuntimeScene,
     assessmentSlug: 'containers-images-checkpoint',
     prerequisites: [],
   },
@@ -782,16 +728,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'ai-mathematics',
     conceptIds: ['vector-representation', 'dot-product'],
     estimatedMinutes: 24,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'python',
-    conceptFlow: conceptFlow(
-      'vector-space',
-      ['Features', 'Vector', 'Transformation', 'Similarity'],
-      'Geometry becomes computation',
-      'Comparing unscaled features lets one large numeric dimension dominate distance regardless of meaning.',
-      'A deliberate transformation restores comparable geometry before similarity is measured.',
-      'The model is complete when features become coordinates, transformations preserve the intended signal, and similarity has geometric meaning.',
-    ),
+    runtimeScene: vectorRuntimeScene,
     assessmentSlug: 'vectors-ml-checkpoint',
     prerequisites: [],
   },
@@ -805,15 +744,8 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'agent-systems',
     conceptIds: ['tool-loop', 'agent-evaluation'],
     estimatedMinutes: 24,
-    visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'agent-loop',
-      ['Goal', 'Model decision', 'Tool call', 'Observation', 'Evaluation'],
-      'Bounded autonomy with evidence',
-      'A tool call without a trustworthy observation leaves the next model decision ungrounded and the loop can repeat a bad action.',
-      'Return bounded tool evidence to state and let evaluation decide whether to continue, recover, or stop.',
-      'The agent loop is complete when every action returns evidence and evaluation enforces the goal, permissions, and stopping condition.',
-    ),
+    visualization: 'runtime-scene',
+    runtimeScene: agentLoopRuntimeScene,
     assessmentSlug: 'agent-loop-checkpoint',
     prerequisites: [],
   },
@@ -828,14 +760,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['active-recall', 'reading-synthesis'],
     estimatedMinutes: 18,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'active-reading',
-      ['Preview', 'Question', 'Read', 'Recall', 'Apply'],
-      'Reading produces evidence',
-      'Passive rereading feels fluent but produces no evidence that the model can be reconstructed without the page.',
-      'Close the material, recall the answer, inspect the gap, and apply the idea to a new example.',
-      'The reading cycle is complete when a chapter becomes retrievable questions, a reconstructed model, and an independent application.',
-    ),
+    conceptFlow: activeReadingFlow,
     assessmentSlug: 'technical-reading-checkpoint',
     prerequisites: [],
   },
@@ -850,19 +775,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['staff-scope', 'business-impact'],
     estimatedMinutes: 24,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'impact-ripple',
-      [
-        'Business context',
-        'Problem selection',
-        'Technical leverage',
-        'Durable impact',
-      ],
-      'Scope grows through leverage',
-      'Choosing a visible but low-consequence project expands activity without changing an important business or organizational constraint.',
-      'Return to business context, select the highest-leverage problem, and build a system that other teams can sustain.',
-      'Staff impact is complete when judgment changes a consequential boundary and the improvement remains useful without permanent heroics.',
-    ),
+    conceptFlow: staffImpactFlow,
     assessmentSlug: 'staff-role-impact-checkpoint',
     prerequisites: [],
   },
@@ -877,14 +790,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['technical-strategy', 'strategic-tradeoffs'],
     estimatedMinutes: 28,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'strategy-map',
-      ['Diagnosis', 'Guiding policy', 'Coherent actions', 'Success signals'],
-      'Direction before projects',
-      'A project list without a diagnosis or guiding policy produces competing actions and no falsifiable direction.',
-      'Reconnect actions to one diagnosis, constrain them with policy, and define signals that can disprove the approach.',
-      'Technical strategy is complete when diagnosis, policy, coherent actions, and success signals reinforce one directional choice.',
-    ),
+    conceptFlow: technicalStrategyFlow,
     assessmentSlug: 'technical-strategy-checkpoint',
     prerequisites: ['staff-role-and-impact'],
   },
@@ -899,20 +805,7 @@ export const lessons: LessonDefinition[] = [
     conceptIds: ['migration-phases', 'cross-team-alignment'],
     estimatedMinutes: 30,
     visualization: 'concept-flow',
-    conceptFlow: conceptFlow(
-      'migration-timeline',
-      [
-        'Shared problem',
-        'Incremental plan',
-        'Validation gates',
-        'Cutover',
-        'Learning',
-      ],
-      'Change is a sociotechnical system',
-      'A cutover without a validated gate or explicit owner creates an irreversible technical and organizational failure boundary.',
-      'Stop the cutover, exercise rollback, resolve the failed gate, and resume only from verified shared state.',
-      'The migration is complete when staged ownership, validation, reversible cutover, and captured learning close the change loop.',
-    ),
+    conceptFlow: crossTeamChangeFlow,
     assessmentSlug: 'cross-team-change-checkpoint',
     prerequisites: ['technical-strategy'],
   },
@@ -3242,14 +3135,88 @@ export function validateLearningPathResources(item: LearningPathDefinition) {
   return Array.from(new Set(errors));
 }
 
+const isIndex = (value: unknown, length: number): value is number =>
+  Number.isInteger(value) &&
+  (value as number) >= 0 &&
+  (value as number) < length;
+
 export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
   const errors: string[] = [];
   const regionIds = new Set(scene.regions.map((region) => region.id));
+  const regionById = new Map(
+    scene.regions.map((region) => [region.id, region]),
+  );
   for (const duplicate of duplicates(scene.regions.map((region) => region.id)))
     errors.push(`${slug}: duplicate runtime region ${duplicate}`);
   if (scene.steps.length === 0) errors.push(`${slug}: empty runtime scene`);
+  // Only generated algorithm traces (array/grid scenes) may run long.
+  const generated = scene.regions.some((region) =>
+    RUNTIME_SCENE_DATA_REGION_KINDS.includes(region.kind),
+  );
+  const maxSteps = generated
+    ? RUNTIME_SCENE_MAX_GENERATED_STEPS
+    : RUNTIME_SCENE_MAX_STEPS;
+  if (scene.steps.length > maxSteps)
+    errors.push(
+      `${slug}: runtime scene has ${scene.steps.length} steps, limit is ${maxSteps}`,
+    );
+  if (
+    scene.complexity &&
+    !(scene.complexity.time?.trim() && scene.complexity.space?.trim())
+  )
+    errors.push(`${slug}: runtime complexity needs time and space`);
+  for (const region of scene.regions) {
+    const at = `${slug}: runtime region ${region.id}`;
+    if (region.kind !== 'grid') {
+      if (region.grid) errors.push(`${at} is not a grid but has a grid layout`);
+      continue;
+    }
+    const layout = region.grid;
+    if (!layout) {
+      errors.push(`${at} needs a grid layout`);
+      continue;
+    }
+    const size = layout.rows * layout.cols;
+    if (
+      !Number.isInteger(layout.rows) ||
+      !Number.isInteger(layout.cols) ||
+      layout.rows < 1 ||
+      layout.cols < 1 ||
+      layout.rows > 8 ||
+      layout.cols > 8
+    ) {
+      errors.push(`${at} grid must be between 1x1 and 8x8`);
+      continue;
+    }
+    if (layout.walls.some((wall) => !isIndex(wall, size)))
+      errors.push(`${at} wall out of range`);
+    if (new Set(layout.walls).size !== layout.walls.length)
+      errors.push(`${at} duplicate wall`);
+    for (const [name, index] of [
+      ['start', layout.start],
+      ['goal', layout.goal],
+    ] as const)
+      if (!isIndex(index, size) || layout.walls.includes(index))
+        errors.push(`${at} ${name} must be an open cell`);
+    if (layout.start === layout.goal)
+      errors.push(`${at} start and goal must differ`);
+  }
+  // Array cells are tokens with stable ids: every step shows the same set.
+  const arrayCellIds = new Map<string, string>();
   scene.steps.forEach((step, index) => {
     const at = `${slug}: runtime step ${index + 1}`;
+    if (step.action) {
+      const text = step.action.text;
+      if (typeof text !== 'string' || !text.trim())
+        errors.push(`${at} empty action caption`);
+      else if (text.length > RUNTIME_SCENE_ACTION_MAX_LENGTH)
+        errors.push(`${at} action caption too long`);
+      if (
+        step.action.tone !== undefined &&
+        !RUNTIME_SCENE_ACTION_TONES.includes(step.action.tone)
+      )
+        errors.push(`${at} unknown action tone ${step.action.tone}`);
+    }
     for (const line of step.codeLines)
       if (
         !Number.isInteger(line) ||
@@ -3266,12 +3233,269 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
     ])
       if (!regionIds.has(regionId))
         errors.push(`${at} unknown region ${regionId}`);
-    for (const token of step.tokens)
+    // The loop only checks the queues once the call stack is empty.
+    if (
+      step.eventLoop === 'checking' &&
+      step.tokens.some(
+        (token) => regionById.get(token.regionId)?.kind === 'stack',
+      )
+    )
+      errors.push(`${at} event loop cannot check while the stack is busy`);
+    for (const token of step.tokens) {
       if (
         token.progress !== undefined &&
         !(token.progress >= 0 && token.progress <= 1)
       )
         errors.push(`${at} token ${token.id} progress out of range`);
+      const home = regionById.get(token.regionId);
+      // Arrays, tables and plots are drawn from their views, not from tokens.
+      if (
+        home?.kind === 'array' ||
+        home?.kind === 'table' ||
+        home?.kind === 'plot'
+      )
+        errors.push(
+          `${at} token ${token.id} cannot sit in ${home.kind} ${home.id}`,
+        );
+      if (home?.kind === 'grid' && token.cell?.regionId !== home.id)
+        errors.push(`${at} token ${token.id} needs a cell in grid ${home.id}`);
+      if (token.cell) {
+        const layout = regionById.get(token.cell.regionId)?.grid;
+        if (
+          !layout ||
+          !isIndex(token.cell.index, layout.rows * layout.cols) ||
+          layout.walls.includes(token.cell.index)
+        )
+          errors.push(`${at} token ${token.id} points at an invalid grid cell`);
+      }
+    }
+
+    const arrays = step.arrays ?? [];
+    const grids = step.grids ?? [];
+    const tables = step.tables ?? [];
+    const plots = step.plots ?? [];
+    for (const duplicate of duplicates([
+      ...arrays.map((view) => view.regionId),
+      ...grids.map((view) => view.regionId),
+      ...tables.map((view) => view.regionId),
+      ...plots.map((view) => view.regionId),
+    ]))
+      errors.push(`${at} duplicate view of region ${duplicate}`);
+    // A data region is redrawn from its view, so no step may leave it blank.
+    for (const region of scene.regions) {
+      if (
+        region.kind === 'array' &&
+        !arrays.some((view) => view.regionId === region.id)
+      )
+        errors.push(`${at} missing array view ${region.id}`);
+      if (
+        region.kind === 'grid' &&
+        !grids.some((view) => view.regionId === region.id)
+      )
+        errors.push(`${at} missing grid view ${region.id}`);
+      if (
+        region.kind === 'plot' &&
+        !plots.some((view) => view.regionId === region.id)
+      )
+        errors.push(`${at} missing plot view ${region.id}`);
+    }
+    for (const view of tables) {
+      const where = `${at} table ${view.regionId}`;
+      if (regionById.get(view.regionId)?.kind !== 'table') {
+        errors.push(`${where} is not a table region`);
+        continue;
+      }
+      if (
+        !Array.isArray(view.columns) ||
+        view.columns.length < 1 ||
+        view.columns.length > RUNTIME_SCENE_TABLE_MAX_COLUMNS ||
+        view.columns.some((column) => !column.label?.trim())
+      )
+        errors.push(
+          `${where} needs 1 to ${RUNTIME_SCENE_TABLE_MAX_COLUMNS} labelled columns`,
+        );
+      if (view.rows.length > RUNTIME_SCENE_TABLE_MAX_ROWS)
+        errors.push(
+          `${where} has ${view.rows.length} rows, limit is ${RUNTIME_SCENE_TABLE_MAX_ROWS}`,
+        );
+      for (const duplicate of duplicates(view.rows.map((row) => row.id)))
+        errors.push(`${where} duplicate row ${duplicate}`);
+      for (const row of view.rows) {
+        if (row.cells.length !== view.columns.length)
+          errors.push(
+            `${where} row ${row.id} expects ${view.columns.length} cells, has ${row.cells.length}`,
+          );
+        if (
+          row.state !== undefined &&
+          !RUNTIME_SCENE_CELL_STATES.includes(row.state)
+        )
+          errors.push(`${where} unknown row state ${row.state}`);
+        if (row.focus?.some((column) => !isIndex(column, view.columns.length)))
+          errors.push(`${where} row ${row.id} focus out of range`);
+        // The referenced row may be missing (an orphan), the table may not.
+        if (
+          row.link &&
+          (row.link.regionId === view.regionId ||
+            regionById.get(row.link.regionId)?.kind !== 'table')
+        )
+          errors.push(`${where} row ${row.id} must link to another table`);
+      }
+    }
+    for (const view of plots) {
+      const where = `${at} plot ${view.regionId}`;
+      if (regionById.get(view.regionId)?.kind !== 'plot') {
+        errors.push(`${where} is not a plot region`);
+        continue;
+      }
+      const inUnit = (value: unknown) =>
+        typeof value === 'number' && value >= 0 && value <= 1;
+      if (view.points.length > RUNTIME_SCENE_PLOT_MAX_POINTS)
+        errors.push(
+          `${where} has ${view.points.length} points, limit is ${RUNTIME_SCENE_PLOT_MAX_POINTS}`,
+        );
+      const pointIds = new Set(view.points.map((point) => point.id));
+      for (const duplicate of duplicates(view.points.map((point) => point.id)))
+        errors.push(`${where} duplicate point ${duplicate}`);
+      for (const point of view.points) {
+        if (!point.label?.trim())
+          errors.push(`${where} unlabelled point ${point.id}`);
+        if (!inUnit(point.x) || !inUnit(point.y))
+          errors.push(`${where} point ${point.id} out of range`);
+        if (
+          point.state !== undefined &&
+          !RUNTIME_SCENE_CELL_STATES.includes(point.state)
+        )
+          errors.push(`${where} unknown point state ${point.state}`);
+      }
+      if (
+        view.query &&
+        !(
+          view.query.label?.trim() &&
+          inUnit(view.query.x) &&
+          inUnit(view.query.y)
+        )
+      )
+        errors.push(`${where} query needs a label and coordinates in range`);
+      if (view.axes && !(view.axes.x?.trim() && view.axes.y?.trim()))
+        errors.push(`${where} axes need two labels`);
+      if ((view.neighbours?.length || view.angle) && !view.query)
+        errors.push(`${where} neighbours and angle need a query`);
+      for (const duplicate of duplicates(view.neighbours ?? []))
+        errors.push(`${where} duplicate neighbour ${duplicate}`);
+      for (const id of view.neighbours ?? [])
+        if (!pointIds.has(id)) errors.push(`${where} unknown neighbour ${id}`);
+      if (view.angle) {
+        if (!pointIds.has(view.angle.pointId))
+          errors.push(`${where} angle to unknown point ${view.angle.pointId}`);
+        if (!view.angle.label?.trim())
+          errors.push(`${where} angle needs a label`);
+      }
+    }
+    for (const view of arrays) {
+      const where = `${at} array ${view.regionId}`;
+      if (regionById.get(view.regionId)?.kind !== 'array') {
+        errors.push(`${where} is not an array region`);
+        continue;
+      }
+      const ids = view.cells.map((cell) => cell.id);
+      for (const duplicate of duplicates(ids))
+        errors.push(`${where} duplicate cell ${duplicate}`);
+      const signature = [...ids].sort().join(' ');
+      if (!arrayCellIds.has(view.regionId))
+        arrayCellIds.set(view.regionId, signature);
+      else if (arrayCellIds.get(view.regionId) !== signature)
+        errors.push(`${where} cell ids changed between steps`);
+      for (const cell of view.cells) {
+        if (
+          cell.state !== undefined &&
+          !RUNTIME_SCENE_CELL_STATES.includes(cell.state)
+        )
+          errors.push(`${where} unknown cell state ${cell.state}`);
+        if (
+          cell.weight !== undefined &&
+          !(cell.weight >= 0 && cell.weight <= 1)
+        )
+          errors.push(`${where} cell ${cell.id} weight out of range`);
+      }
+      for (const pointer of view.pointers ?? []) {
+        if (!pointer.label?.trim()) errors.push(`${where} unlabelled pointer`);
+        if (!isIndex(pointer.index, view.cells.length))
+          errors.push(`${where} pointer ${pointer.label} out of range`);
+      }
+      for (const duplicate of duplicates(
+        (view.pointers ?? []).map((pointer) => pointer.label),
+      ))
+        errors.push(`${where} duplicate pointer ${duplicate}`);
+      if (
+        view.range &&
+        !(
+          isIndex(view.range.from, view.cells.length) &&
+          isIndex(view.range.to, view.cells.length) &&
+          view.range.from <= view.range.to
+        )
+      )
+        errors.push(`${where} range out of bounds`);
+    }
+    for (const view of grids) {
+      const where = `${at} grid ${view.regionId}`;
+      const layout = regionById.get(view.regionId)?.grid;
+      if (regionById.get(view.regionId)?.kind !== 'grid' || !layout) {
+        errors.push(`${where} is not a grid region`);
+        continue;
+      }
+      const size = layout.rows * layout.cols;
+      if (view.cells.length !== size)
+        errors.push(`${where} expects ${size} cells, has ${view.cells.length}`);
+      view.cells.forEach((state, cell) => {
+        if (!RUNTIME_SCENE_CELL_STATES.includes(state))
+          errors.push(`${where} unknown cell state ${state}`);
+        else if (state !== 'default' && layout.walls.includes(cell))
+          errors.push(`${where} wall ${cell} cannot have a state`);
+      });
+      if (view.path) {
+        const path = view.path;
+        const connected = path.every((cell, position) => {
+          if (!isIndex(cell, size) || layout.walls.includes(cell)) return false;
+          if (position === 0) return true;
+          const previous = path[position - 1];
+          const rowGap = Math.abs(
+            Math.floor(cell / layout.cols) - Math.floor(previous / layout.cols),
+          );
+          const colGap = Math.abs(
+            (cell % layout.cols) - (previous % layout.cols),
+          );
+          return rowGap + colGap === 1;
+        });
+        if (
+          !connected ||
+          path[0] !== layout.start ||
+          path[path.length - 1] !== layout.goal
+        )
+          errors.push(`${where} path must walk open cells from start to goal`);
+      }
+    }
+
+    if (step.challenge) {
+      const { prompt, options, answer, explanation } = step.challenge;
+      // A challenge predicts the next step, so the last step cannot ask one.
+      if (index === scene.steps.length - 1)
+        errors.push(`${at} final step cannot ask a challenge`);
+      if (!prompt?.trim() || !explanation?.trim())
+        errors.push(`${at} challenge needs a prompt and an explanation`);
+      if (
+        !Array.isArray(options) ||
+        options.length < 2 ||
+        options.length > 4 ||
+        options.some((option) => !option?.trim())
+      )
+        errors.push(`${at} challenge needs 2 to 4 options`);
+      else {
+        if (new Set(options).size !== options.length)
+          errors.push(`${at} challenge options must be distinct`);
+        if (!isIndex(answer, options.length))
+          errors.push(`${at} challenge answer out of range`);
+      }
+    }
   });
   return errors;
 }
@@ -3321,6 +3545,27 @@ export function validateCatalog() {
         steps.filter((step) => step.phase === 'terminal').length !== 1
       )
         errors.push(`${lesson.slug}: incomplete visual narrative`);
+      const nodeIds = new Set(lesson.conceptFlow.nodes.map((node) => node.id));
+      for (const connection of lesson.conceptFlow.connections)
+        if (!nodeIds.has(connection.from) || !nodeIds.has(connection.to))
+          errors.push(`${lesson.slug}: concept connection to unknown node`);
+      steps.forEach((step, index) => {
+        const at = `${lesson.slug}: concept step ${index + 1}`;
+        if (!step.label?.trim() || !step.narration?.trim())
+          errors.push(`${at} needs a label and a narration`);
+        for (const id of [
+          ...step.activeNodeIds,
+          ...(step.completedNodeIds ?? []),
+          ...(step.failedNodeIds ?? []),
+          ...(step.token ? [step.token.nodeId] : []),
+        ])
+          if (!nodeIds.has(id)) errors.push(`${at} unknown node ${id}`);
+        if (step.token && !step.token.label?.trim())
+          errors.push(`${at} empty token label`);
+        for (const connection of step.activeConnectionIndexes ?? [])
+          if (!isIndex(connection, lesson.conceptFlow!.connections.length))
+            errors.push(`${at} connection ${connection} out of range`);
+      });
     }
     for (const prerequisite of lesson.prerequisites)
       if (!lessonBySlug.has(prerequisite))

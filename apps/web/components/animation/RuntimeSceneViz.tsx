@@ -1,41 +1,45 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  LayoutGroup,
-  motion,
-  useReducedMotion,
-  type Transition,
-} from 'framer-motion';
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
+import { LayoutGroup, motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type {
   RuntimeScene,
+  RuntimeSceneActionTone,
   RuntimeSceneRegion,
-  RuntimeSceneRegionTone,
   RuntimeSceneStep,
   RuntimeSceneToken,
 } from '@algoflow/contracts';
 import {
   INSTANT,
+  MOVE,
   tokenExitVariant,
 } from '../../lib/animation/runtimeSceneMotion';
+import { TONE_VAR, tone } from '../../lib/animation/runtimeSceneTone';
+import { ArrayRegion, GridRegion } from './RuntimeSceneData';
+import { PlotRegion } from './RuntimeScenePlot';
+import { TableRegions } from './RuntimeSceneTable';
 
-const TONE_VAR: Record<RuntimeSceneRegionTone, string> = {
-  green: '--color-success',
-  red: '--color-danger',
-  yellow: '--color-warning',
-  orange: '--color-scene-orange',
-  teal: '--color-scene-teal',
+const ACTION_TONE_VAR: Record<RuntimeSceneActionTone, string> = {
+  compare: '--color-warning',
+  swap: '--color-scene-orange',
+  ok: '--color-success',
+  error: '--color-danger',
 };
 
+// Fallback row height until the real (possibly wrapped) lines are measured.
 const LINE_HEIGHT = 26;
 const CODE_PADDING = 8;
-// Longer snippets scroll inside the panel so the sticky player stays on screen.
-const CODE_VISIBLE_LINES = 6;
 
-const tone = (variable: string, alpha = 1) =>
-  `rgb(var(${variable}) / ${alpha})`;
-
-const MOVE: Transition = { type: 'spring', stiffness: 240, damping: 26 };
+// The DOM is only measured in the browser; on the server this is a no-op.
+const useIsomorphicLayoutEffect =
+  typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 function tokenStyle(
   token: RuntimeSceneToken,
@@ -61,7 +65,7 @@ function tokenStyle(
 }
 
 const tokenClass = (region: RuntimeSceneRegion) =>
-  `rounded-md border py-1 font-mono text-[11px] shadow-sm transition-colors duration-300 ${region.kind === 'pipeline' ? 'break-words px-1.5 text-center' : 'whitespace-nowrap px-2.5'}`;
+  `max-w-full rounded-md border py-1 font-mono text-xs shadow-sm transition-colors duration-300 sm:text-[11px] ${region.kind === 'pipeline' ? 'break-words px-1.5 text-center' : region.kind === 'queue' ? 'whitespace-nowrap px-2.5' : 'break-words px-2 sm:whitespace-nowrap sm:px-2.5'}`;
 
 interface LeavingToken {
   token: RuntimeSceneToken;
@@ -70,6 +74,7 @@ interface LeavingToken {
 }
 
 const EXIT_MS = 240;
+const FLY_IN_MS = 420;
 
 /** Tokens of `previous` that no longer exist anywhere in `next`. */
 function poppedTokens(
@@ -129,12 +134,44 @@ function Token({
   reduced: boolean;
 }) {
   const style = tokenStyle(token, region);
+  // A token discovered on a grid flies in from its cell instead of fading in.
+  const element = useRef<HTMLDivElement>(null);
+  const fliesIn = useRef(
+    isNew && !reduced && token.cell && token.cell.regionId !== region.id
+      ? `${token.cell.regionId}:${token.cell.index}`
+      : null,
+  );
+  useIsomorphicLayoutEffect(() => {
+    const node = element.current;
+    const origin =
+      fliesIn.current &&
+      node
+        ?.closest('[data-scene]')
+        ?.querySelector(`[data-grid-cell="${fliesIn.current}"]`);
+    if (!node || !origin || typeof node.animate !== 'function') return;
+    const from = origin.getBoundingClientRect();
+    const to = node.getBoundingClientRect();
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+    const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+    node.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(0.7)`, opacity: 0.5 },
+        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+      ],
+      { duration: FLY_IN_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    );
+  }, []);
   return (
     <motion.div
+      ref={element}
       layoutId={token.id}
       layout="position"
       data-token={token.id}
-      initial={isNew && !reduced ? { opacity: 0, scale: 0.6 } : false}
+      initial={
+        isNew && !reduced && !fliesIn.current
+          ? { opacity: 0, scale: 0.6 }
+          : false
+      }
       animate={{ opacity: 1, scale: 1 }}
       transition={reduced ? INSTANT : MOVE}
       className={tokenClass(region)}
@@ -144,7 +181,7 @@ function Token({
       {linkedRegion && (
         <span
           data-link={linkedRegion.id}
-          className="ml-2 rounded border px-1 py-px text-[9px] uppercase tracking-[0.08em]"
+          className="ml-1.5 inline-block whitespace-nowrap rounded border px-1 py-px text-[11px] uppercase tracking-[0.04em] sm:ml-2 sm:text-[9px] sm:tracking-[0.08em]"
           style={{
             borderColor: tone(TONE_VAR[linkedRegion.tone], 0.7),
             color: tone(TONE_VAR[linkedRegion.tone]),
@@ -179,13 +216,19 @@ function Token({
 
 const BODY_CLASS: Record<RuntimeSceneRegion['kind'], string> = {
   // column-reverse: the first token sits at the bottom, so the stack grows up.
-  stack: 'min-h-[132px] flex-col-reverse items-stretch justify-start',
+  stack:
+    'min-h-[88px] flex-col-reverse items-stretch justify-start sm:min-h-[132px]',
   // FIFO: the head of the queue is the leftmost token.
-  queue: 'min-h-[48px] flex-row items-center overflow-x-auto',
-  box: 'min-h-[56px] flex-row flex-wrap content-start items-start',
+  queue: 'min-h-[44px] flex-row items-center overflow-x-auto sm:min-h-[48px]',
+  box: 'min-h-[44px] flex-row flex-wrap content-start items-start sm:min-h-[56px]',
   console: 'min-h-[48px] flex-col',
   // One station of the strip: its tokens stack and may wrap their label.
-  pipeline: 'min-h-[60px] flex-col items-stretch justify-start',
+  pipeline: 'min-h-[52px] flex-col items-stretch justify-start sm:min-h-[60px]',
+  // Data regions are drawn by their own components, not by Region.
+  array: '',
+  grid: '',
+  table: '',
+  plot: '',
 };
 
 function Region({
@@ -196,6 +239,7 @@ function Region({
   previousIds,
   regionById,
   reduced,
+  compact = false,
   className = '',
   style,
 }: {
@@ -206,6 +250,8 @@ function Region({
   previousIds: Set<string>;
   regionById: Map<string, RuntimeSceneRegion>;
   reduced: boolean;
+  /** Shares a phone row with another region, so the header drops its hint. */
+  compact?: boolean;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -228,27 +274,29 @@ function Region({
       }}
     >
       <header
-        className={`flex items-center justify-between gap-2 pt-2 ${station ? 'px-2' : 'px-3'}`}
+        className={`flex items-center justify-between gap-2 pt-1.5 sm:pt-2 ${station ? 'px-2' : 'px-2 sm:px-3'}`}
       >
         <span
-          className={`font-mono text-[10px] font-semibold uppercase ${station ? 'tracking-[0.06em]' : 'tracking-[0.18em]'}`}
+          className={`font-mono text-xs font-semibold uppercase sm:text-[10px] ${station ? 'tracking-[0.02em] sm:tracking-[0.06em]' : 'tracking-[0.08em] sm:tracking-[0.18em]'}`}
           style={{ color: tone(variable) }}
         >
           {region.label}
         </span>
         {region.kind === 'queue' && (
-          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-faint">
+          <span
+            className={`whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.06em] text-faint sm:inline sm:text-[9px] sm:tracking-[0.14em] ${compact ? 'hidden' : ''}`}
+          >
             ← next out
           </span>
         )}
       </header>
       <div
-        className={`relative flex flex-1 gap-1.5 p-2 ${BODY_CLASS[region.kind]}`}
+        className={`relative flex flex-1 gap-1.5 p-1.5 sm:p-2 ${BODY_CLASS[region.kind]}`}
       >
         {items.length === 0 && !station && (
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[10px] text-faint"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-xs text-faint sm:text-[10px]"
           >
             empty
           </span>
@@ -284,42 +332,73 @@ function CodePanel({
   scene,
   step,
   reduced,
+  sceneFirst,
+  className = '',
 }: {
   scene: RuntimeScene;
   step: RuntimeSceneStep;
   reduced: boolean;
+  sceneFirst: boolean;
+  className?: string;
 }) {
   const highlighted = new Set(step.codeLines);
   const first = step.codeLines.length ? Math.min(...step.codeLines) : null;
   const last = step.codeLines.length ? Math.max(...step.codeLines) : null;
-  // Keep the band where it was while no line is active, so it fades in place.
-  const lastBand = useRef({ first: first ?? 0, last: last ?? 0 });
-  const band =
-    first === null || last === null ? lastBand.current : { first, last };
-  useEffect(() => {
-    if (first !== null && last !== null) lastBand.current = { first, last };
-  }, [first, last]);
-  // Scroll the panel itself (never the page) to keep the active lines in view.
+  // Lines soft-wrap on phones, so the band is measured from the rendered rows
+  // instead of assuming one fixed-height row per line.
   const scroller = useRef<HTMLDivElement>(null);
+  const rows = useRef<Array<HTMLLIElement | null>>([]);
+  const [band, setBand] = useState({
+    top: CODE_PADDING + (first ?? 0) * LINE_HEIGHT,
+    height: ((last ?? 0) - (first ?? 0) + 1) * LINE_HEIGHT,
+  });
+  // Bumped whenever the panel is resized, which re-wraps the lines.
+  const [layoutVersion, setLayoutVersion] = useState(0);
   useEffect(() => {
     const panel = scroller.current;
-    if (!panel || first === null || last === null) return;
-    const middle = CODE_PADDING + ((first + last + 1) / 2) * LINE_HEIGHT;
+    if (!panel || typeof ResizeObserver === 'undefined') return;
+    let width = panel.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (panel.clientWidth === width) return;
+      width = panel.clientWidth;
+      setLayoutVersion((version) => version + 1);
+    });
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
+  // Keep the band where it was while no line is active, so it fades in place.
+  useIsomorphicLayoutEffect(() => {
+    if (first === null || last === null) return;
+    const from = rows.current[first];
+    const to = rows.current[last];
+    if (!from || !to) return;
+    const next = {
+      top: CODE_PADDING + from.offsetTop,
+      height: to.offsetTop + to.offsetHeight - from.offsetTop,
+    };
+    setBand((current) =>
+      current.top === next.top && current.height === next.height
+        ? current
+        : next,
+    );
+  }, [first, last, layoutVersion]);
+  // Scroll the panel itself (never the page) to keep the active lines in view.
+  useEffect(() => {
+    const panel = scroller.current;
+    if (!panel || first === null) return;
     panel.scrollTo({
-      top: Math.max(0, middle - panel.clientHeight / 2),
+      top: Math.max(0, band.top + band.height / 2 - panel.clientHeight / 2),
       behavior: reduced ? 'auto' : 'smooth',
     });
-  }, [first, last, reduced]);
+  }, [band, first, reduced]);
 
   return (
     <div
       ref={scroller}
-      className="overflow-auto rounded-lg border border-line bg-canvas/70"
-      style={{
-        maxHeight: CODE_VISIBLE_LINES * LINE_HEIGHT + CODE_PADDING * 2,
-      }}
+      data-code-panel
+      className={`max-h-[126px] overflow-auto rounded-lg border border-line bg-canvas/70 sm:max-h-[172px] ${className} ${sceneFirst ? 'sm:!order-4' : ''}`}
     >
-      <div className="relative min-w-max" style={{ padding: CODE_PADDING }}>
+      <div className="relative sm:min-w-max" style={{ padding: CODE_PADDING }}>
         <motion.div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 border-l-2"
@@ -329,25 +408,27 @@ function CodePanel({
           }}
           initial={false}
           animate={{
-            top: CODE_PADDING + band.first * LINE_HEIGHT,
-            height: (band.last - band.first + 1) * LINE_HEIGHT,
+            top: band.top,
+            height: band.height,
             opacity: first === null ? 0 : 1,
           }}
           transition={reduced ? INSTANT : MOVE}
         />
-        <ol className="relative font-mono text-[12px]">
+        <ol className="relative font-mono text-[12px] leading-[22px] sm:leading-[26px]">
           {scene.code.lines.map((line, index) => (
             <li
               key={index}
+              ref={(element) => {
+                rows.current[index] = element;
+              }}
               aria-current={highlighted.has(index) ? 'step' : undefined}
-              className="flex items-center gap-3 whitespace-pre pr-4"
-              style={{ height: LINE_HEIGHT }}
+              className="flex min-h-[22px] items-start gap-3 pr-2 sm:min-h-[26px] sm:pr-4"
             >
-              <span className="w-5 select-none text-right text-faint">
+              <span className="w-5 shrink-0 select-none text-right text-faint">
                 {index + 1}
               </span>
               <code
-                className={`transition-colors duration-300 ${highlighted.has(index) ? 'text-ink' : 'text-subtle'}`}
+                className={`min-w-0 whitespace-pre-wrap transition-colors duration-300 [overflow-wrap:anywhere] sm:whitespace-pre ${highlighted.has(index) ? 'text-ink' : 'text-subtle'}`}
               >
                 {line}
               </code>
@@ -362,14 +443,17 @@ function CodePanel({
 function EventLoopIndicator({
   checking,
   stackBusy,
+  beside,
 }: {
   checking: boolean;
   stackBusy: boolean;
+  /** True when a stack already fills the neighbouring grid column. */
+  beside: boolean;
 }) {
   return (
     <div
       data-event-loop={checking ? 'checking' : 'idle'}
-      className={`flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors duration-300 ${checking ? 'border-line-strong bg-surface-raised text-ink' : 'border-line text-faint'}`}
+      className={`flex items-center gap-2 rounded-lg border px-2 py-2 transition-colors sm:gap-3 sm:px-3 ${beside ? '' : 'col-span-2 sm:col-span-1'} duration-300 ${checking ? 'border-line-strong bg-surface-raised text-ink' : 'border-line text-faint'}`}
     >
       <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
         {checking && (
@@ -402,7 +486,7 @@ function EventLoopIndicator({
         </svg>
       </span>
       <div className="min-w-0">
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em]">
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.08em] sm:text-[10px] sm:tracking-[0.18em]">
           Event loop
         </p>
         <p className="mt-0.5 text-xs text-subtle">
@@ -438,15 +522,15 @@ function ConsolePanel({
       className="rounded-lg border bg-canvas/70 transition-[border-color] duration-300"
       style={{ borderColor: tone(variable, active ? 0.8 : 0.28) }}
     >
-      <header className="px-3 pt-2">
+      <header className="px-2 pt-1.5 sm:px-3 sm:pt-2">
         <span
-          className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em]"
+          className="font-mono text-xs font-semibold uppercase tracking-[0.08em] sm:text-[10px] sm:tracking-[0.18em]"
           style={{ color: tone(variable) }}
         >
           {region.label}
         </span>
       </header>
-      <ol className="min-h-[28px] px-3 pb-2 pt-1 font-mono text-[12px] text-ink">
+      <ol className="min-h-[28px] px-2 pb-2 pt-1 font-mono text-[12px] text-ink sm:px-3">
         {output.map((line, index) => (
           <motion.li
             key={`${index}-${line}`}
@@ -462,7 +546,7 @@ function ConsolePanel({
             <span aria-hidden className="text-faint">
               ›
             </span>
-            {line}
+            <span className="min-w-0 [overflow-wrap:anywhere]">{line}</span>
           </motion.li>
         ))}
       </ol>
@@ -470,16 +554,99 @@ function ConsolePanel({
   );
 }
 
+/**
+ * The live operation with its real values, between the scene and the code.
+ * Decorative: the narration is the accessible description of the step.
+ */
+function ActionCaption({
+  action,
+  reduced,
+  sceneFirst,
+}: {
+  action: RuntimeSceneStep['action'];
+  reduced: boolean;
+  sceneFirst: boolean;
+}) {
+  const variable = ACTION_TONE_VAR[action?.tone ?? 'compare'];
+  return (
+    <div
+      aria-hidden
+      data-action={action?.tone ?? (action ? 'compare' : 'none')}
+      className={`order-2 flex min-h-[2.25rem] items-center rounded-md border px-2.5 py-1.5 transition-colors duration-300 sm:order-3 ${sceneFirst ? 'sm:!order-2' : ''}`}
+      style={{
+        borderColor: action ? tone(variable, 0.45) : 'transparent',
+        background: action ? tone(variable, 0.07) : 'transparent',
+      }}
+    >
+      {action && (
+        <motion.p
+          key={action.text}
+          initial={reduced ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={reduced ? INSTANT : { duration: 0.25 }}
+          className="min-w-0 font-mono text-[13px] font-semibold leading-5 [overflow-wrap:anywhere]"
+          style={{ color: tone(variable) }}
+        >
+          {action.text}
+        </motion.p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Marks the final step: a success outline over the scene plus one light sweep
+ * across it. With reduced motion only the static outline is drawn.
+ */
+function CompletionSweep({ reduced }: { reduced: boolean }) {
+  return (
+    <div
+      aria-hidden
+      data-completion={reduced ? 'static' : 'sweep'}
+      className="pointer-events-none absolute -inset-1 overflow-hidden rounded-xl border"
+      style={{
+        borderColor: tone('--color-success', 0.55),
+        boxShadow: `0 0 0 3px ${tone('--color-success', 0.1)}`,
+      }}
+    >
+      {!reduced && (
+        <motion.div
+          className="absolute inset-y-0 w-1/3"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${tone('--color-success', 0.22)}, transparent)`,
+          }}
+          initial={{ left: '-35%' }}
+          animate={{ left: '105%' }}
+          transition={{ duration: 0.9, ease: 'easeInOut' }}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function RuntimeSceneViz({
   scene,
   step,
   stepIndex,
+  sceneFirst: sceneFirstProp,
 }: {
   scene: RuntimeScene;
   step: RuntimeSceneStep;
   stepIndex: number;
+  /**
+   * Lead with the scene at every width (scene, caption, narration, code from
+   * `sm` up) instead of only on phones. Defaults to on for array, grid, table
+   * and plot scenes: the data is the lesson, and a tall region below the code
+   * would fall out of the sticky desktop player.
+   */
+  sceneFirst?: boolean;
 }) {
-  const reduced = Boolean(useReducedMotion());
+  const reduced = useHydratedReducedMotion();
+  const sceneFirst =
+    sceneFirstProp ??
+    scene.regions.some((region) =>
+      ['array', 'grid', 'table', 'plot'].includes(region.kind),
+    );
   // What the previous rendered step contained, so only genuinely new tokens
   // and output lines animate in. Seeded with the first step for a static SSR.
   const previousIds = useRef(new Set(step.tokens.map((token) => token.id)));
@@ -518,6 +685,13 @@ export default function RuntimeSceneViz({
   const queues = byKind('queue');
   const consoles = byKind('console');
   const pipeline = byKind('pipeline');
+  const arrays = byKind('array');
+  const grids = byKind('grid');
+  const tables = byKind('table');
+  const plots = byKind('plot');
+  // A stack next to a grid is its frontier: the two share one row.
+  const gridStacks = grids.length > 0 ? stacks : [];
+  const freeStacks = grids.length > 0 ? [] : stacks;
   const regionById = new Map(
     scene.regions.map((region) => [region.id, region]),
   );
@@ -534,116 +708,283 @@ export default function RuntimeSceneViz({
     reduced,
   });
 
+  const isFinal = stepIndex === scene.steps.length - 1;
+  const hasActions = scene.steps.some((item) => item.action);
+
+  // The pipeline strip scrolls sideways on narrow screens: keep the station
+  // the request is at centred. Only the strip scrolls, never the page.
+  const strip = useRef<HTMLDivElement>(null);
+  const station =
+    pipeline.find(
+      (region) => active.has(region.id) && tokensIn(region.id).length > 0,
+    ) ??
+    pipeline.find((region) => tokensIn(region.id).length > 0) ??
+    pipeline.find((region) => active.has(region.id));
+  const stationId = station?.id;
+  useEffect(() => {
+    const scroller = strip.current;
+    if (!scroller || !stationId) return;
+    if (scroller.scrollWidth <= scroller.clientWidth) return;
+    const target = scroller.querySelector<HTMLElement>(
+      `[data-region="${stationId}"]`,
+    );
+    if (!target) return;
+    const box = target.getBoundingClientRect();
+    const frame = scroller.getBoundingClientRect();
+    scroller.scrollTo({
+      left: Math.max(
+        0,
+        box.left -
+          frame.left +
+          scroller.scrollLeft -
+          (scroller.clientWidth - box.width) / 2,
+      ),
+      behavior: reduced ? 'auto' : 'smooth',
+    });
+  }, [stationId, stepIndex, reduced]);
+
   return (
     <section
       className="border-y border-line bg-surface/40 py-3"
       data-viz="runtime-scene"
+      data-complete={isFinal || undefined}
     >
-      <header className="flex items-center justify-between gap-3 px-1">
-        <p className="eyebrow">runtime scene</p>
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
-          {scene.code.language}
-        </span>
-      </header>
-      <div
-        aria-live="polite"
-        className="mt-3 min-h-[7rem] border-l-2 border-line-strong pl-4"
-      >
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
-          Step {stepIndex + 1} of {scene.steps.length}
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-1">
+        <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted sm:text-[10px] sm:tracking-[0.26em]">
+          runtime scene
         </p>
-        <p className="mt-1 text-sm font-semibold text-ink">{step.label}</p>
-        <p className="mt-1 text-sm leading-6 text-ink-soft">{step.narration}</p>
-      </div>
-      <div className="mt-3 grid gap-3">
-        <CodePanel scene={scene} step={step} reduced={reduced} />
-        <LayoutGroup id="runtime-scene">
-          {pipeline.length > 0 && (
-            <div className="overflow-x-auto sm:overflow-visible">
-              <ol
-                data-pipeline
-                className="flex min-w-max items-stretch gap-1 sm:min-w-0"
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {scene.complexity &&
+            (['time', 'space'] as const).map((axis) => (
+              <span
+                key={axis}
+                data-complexity={axis}
+                className="rounded border border-line-strong px-1.5 py-0.5 font-mono text-xs text-ink-soft sm:text-[11px]"
               >
-                {pipeline.map((region, index) => (
-                  <li
-                    key={region.id}
-                    className="flex min-w-[84px] flex-1 basis-0 items-stretch gap-1"
-                  >
-                    {index > 0 && (
-                      <span
-                        aria-hidden
-                        className="self-center font-mono text-sm text-subtle"
-                      >
-                        ›
-                      </span>
-                    )}
-                    <Region {...regionProps(region)} className="flex-1" />
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {(stacks.length > 0 || boxes.length > 0 || hasEventLoop) && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {stacks.map((region) => (
-                <Region
-                  key={region.id}
-                  {...regionProps(region)}
-                  className="sm:[grid-row:span_var(--stack-rows)]"
-                  style={
-                    {
-                      '--stack-rows': Math.max(
-                        1,
-                        boxes.length + (hasEventLoop ? 1 : 0),
-                      ),
-                    } as CSSProperties
-                  }
-                />
-              ))}
-              {boxes.map((region, index) => (
-                <Region
-                  key={region.id}
-                  {...regionProps(region)}
-                  className={
-                    // With no stack beside them, a trailing odd box takes the
-                    // full row instead of half of it.
-                    index === boxes.length - 1 &&
-                    stacks.length === 0 &&
-                    !hasEventLoop &&
-                    boxes.length % 2 === 1
-                      ? 'sm:col-span-2'
-                      : ''
-                  }
-                />
-              ))}
-              {hasEventLoop && (
-                <EventLoopIndicator
-                  checking={step.eventLoop === 'checking'}
-                  stackBusy={stackBusy}
-                />
-              )}
-            </div>
-          )}
-          {queues.length > 0 && (
-            <div
-              className={`grid gap-3 ${queues.length > 1 ? 'sm:grid-cols-2' : ''}`}
-            >
-              {queues.map((region) => (
-                <Region key={region.id} {...regionProps(region)} />
-              ))}
-            </div>
-          )}
-        </LayoutGroup>
-        {consoles.map((region) => (
-          <ConsolePanel
-            key={region.id}
-            region={region}
-            output={step.output}
-            previousLength={previousOutputLength.current}
-            active={active.has(region.id)}
+                <span className="text-subtle">{axis} </span>
+                {scene.complexity![axis]}
+              </span>
+            ))}
+          <span className="font-mono text-xs uppercase tracking-[0.12em] text-subtle sm:text-[10px] sm:tracking-[0.2em]">
+            {scene.code.language}
+          </span>
+        </div>
+      </header>
+      {/* Phones lead with the scene, so the step title sits above it. The
+          live region below carries the same text for assistive tech. */}
+      <p
+        aria-hidden
+        className="mt-2 px-1 text-sm font-semibold leading-5 text-ink sm:hidden"
+      >
+        <span className="mr-2 font-mono text-xs font-normal text-subtle">
+          {stepIndex + 1}/{scene.steps.length}
+        </span>
+        {step.label}
+      </p>
+      {/* Visual order: scene, caption, code, narration on phones (scene
+          first); narration, code, caption, scene from `sm` up, unless the
+          scene leads there too. */}
+      <div className="mt-2 grid gap-2 sm:mt-3 sm:gap-3">
+        <div
+          aria-live="polite"
+          className={`order-4 border-l-2 border-line-strong pl-3 sm:order-1 sm:min-h-[7rem] sm:pl-4 ${sceneFirst ? 'sm:!order-3' : ''}`}
+        >
+          <p className="hidden font-mono text-[10px] uppercase tracking-[0.2em] text-subtle sm:block">
+            Step {stepIndex + 1} of {scene.steps.length}
+          </p>
+          <p className="sr-only text-sm font-semibold text-ink sm:not-sr-only sm:mt-1">
+            {step.label}
+          </p>
+          <p className="text-sm leading-6 text-ink-soft sm:mt-1">
+            {step.narration}
+          </p>
+        </div>
+        <CodePanel
+          scene={scene}
+          step={step}
+          reduced={reduced}
+          sceneFirst={sceneFirst}
+          className="order-3 sm:order-2"
+        />
+        {hasActions && (
+          <ActionCaption
+            action={
+              step.action ??
+              (isFinal ? { text: '✓ complete', tone: 'ok' } : undefined)
+            }
             reduced={reduced}
+            sceneFirst={sceneFirst}
           />
-        ))}
+        )}
+        <div
+          data-scene
+          className={`relative order-1 grid gap-2 sm:order-4 sm:gap-3 ${sceneFirst ? 'sm:!order-1' : ''}`}
+        >
+          <LayoutGroup id="runtime-scene">
+            {pipeline.length > 0 && (
+              <motion.div
+                ref={strip}
+                layoutScroll
+                data-pipeline-scroller
+                className="overflow-x-auto pb-1 sm:overflow-visible sm:pb-0"
+              >
+                <ol
+                  data-pipeline
+                  className="flex min-w-max items-stretch gap-1 sm:min-w-0"
+                >
+                  {pipeline.map((region, index) => (
+                    <li
+                      key={region.id}
+                      className="flex min-w-[104px] flex-1 basis-0 items-stretch gap-1 sm:min-w-[84px]"
+                    >
+                      {index > 0 && (
+                        <span
+                          aria-hidden
+                          className="self-center font-mono text-sm text-subtle"
+                        >
+                          ›
+                        </span>
+                      )}
+                      <Region {...regionProps(region)} className="flex-1" />
+                    </li>
+                  ))}
+                </ol>
+              </motion.div>
+            )}
+            {arrays.map((region) => {
+              const view = step.arrays?.find(
+                (item) => item.regionId === region.id,
+              );
+              return (
+                view && (
+                  <ArrayRegion
+                    key={region.id}
+                    region={region}
+                    view={view}
+                    active={active.has(region.id)}
+                    reduced={reduced}
+                  />
+                )
+              );
+            })}
+            {plots.map((region) => {
+              const view = step.plots?.find(
+                (item) => item.regionId === region.id,
+              );
+              return (
+                view && (
+                  <PlotRegion
+                    key={region.id}
+                    region={region}
+                    view={view}
+                    active={active.has(region.id)}
+                    reduced={reduced}
+                  />
+                )
+              );
+            })}
+            {tables.length > 0 && (
+              <TableRegions
+                regions={tables}
+                views={step.tables ?? []}
+                activeIds={active}
+                reduced={reduced}
+              />
+            )}
+            {grids.length > 0 && (
+              <div
+                className={`grid gap-2 sm:gap-3 ${gridStacks.length > 0 ? 'grid-cols-[minmax(0,1fr)_5.5rem] sm:grid-cols-[minmax(0,1fr)_8rem]' : ''}`}
+              >
+                {grids.map((region) => {
+                  const view = step.grids?.find(
+                    (item) => item.regionId === region.id,
+                  );
+                  return (
+                    view && (
+                      <GridRegion
+                        key={region.id}
+                        region={region}
+                        view={view}
+                        tokens={tokensIn(region.id)}
+                        active={active.has(region.id)}
+                        reduced={reduced}
+                      />
+                    )
+                  );
+                })}
+                {gridStacks.map((region) => (
+                  <Region key={region.id} {...regionProps(region)} />
+                ))}
+              </div>
+            )}
+            {(freeStacks.length > 0 || boxes.length > 0 || hasEventLoop) && (
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                {freeStacks.map((region) => (
+                  <Region
+                    key={region.id}
+                    {...regionProps(region)}
+                    className="[grid-row:span_var(--stack-rows)]"
+                    style={
+                      {
+                        '--stack-rows': Math.max(
+                          1,
+                          boxes.length + (hasEventLoop ? 1 : 0),
+                        ),
+                      } as CSSProperties
+                    }
+                  />
+                ))}
+                {boxes.map((region, index) => (
+                  <Region
+                    key={region.id}
+                    {...regionProps(region)}
+                    className={
+                      // With no stack beside them, a trailing odd box takes the
+                      // full row instead of half of it.
+                      index === boxes.length - 1 &&
+                      freeStacks.length === 0 &&
+                      !hasEventLoop &&
+                      boxes.length % 2 === 1
+                        ? 'col-span-2'
+                        : ''
+                    }
+                  />
+                ))}
+                {hasEventLoop && (
+                  <EventLoopIndicator
+                    checking={step.eventLoop === 'checking' && !stackBusy}
+                    stackBusy={stackBusy}
+                    beside={freeStacks.length > 0}
+                  />
+                )}
+              </div>
+            )}
+            {queues.length > 0 && (
+              <div
+                className={`grid gap-2 sm:gap-3 ${queues.length > 1 ? 'grid-cols-2' : ''}`}
+              >
+                {queues.map((region) => (
+                  <Region
+                    key={region.id}
+                    {...regionProps(region)}
+                    compact={queues.length > 1}
+                  />
+                ))}
+              </div>
+            )}
+          </LayoutGroup>
+          {consoles.map((region) => (
+            <ConsolePanel
+              key={region.id}
+              region={region}
+              output={step.output}
+              previousLength={previousOutputLength.current}
+              active={active.has(region.id)}
+              reduced={reduced}
+            />
+          ))}
+          {isFinal && <CompletionSweep key={stepIndex} reduced={reduced} />}
+        </div>
       </div>
     </section>
   );

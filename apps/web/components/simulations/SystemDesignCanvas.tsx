@@ -1,7 +1,8 @@
 'use client';
 
 import { useId, useRef } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type { SystemDesignGraph, VisualStagePhase } from '@algoflow/contracts';
 import {
   SYSTEM_CANVAS_LANES,
@@ -70,21 +71,29 @@ function MovingFlowToken({
       }}
       transition={{ duration: 1.35, repeat: Infinity, ease: 'linear' }}
     >
-      {visual.token === 'circle' && <circle r="6" fill="#fafaf9" />}
+      {visual.token === 'circle' && (
+        <circle r="6" fill="rgb(var(--color-ink))" />
+      )}
       {visual.token === 'square' && (
-        <rect x="-5" y="-5" width="10" height="10" fill="#fafaf9" />
+        <rect
+          x="-5"
+          y="-5"
+          width="10"
+          height="10"
+          fill="rgb(var(--color-ink))"
+        />
       )}
       {visual.token === 'diamond' && (
-        <path d="M0-7 7 0 0 7-7 0Z" fill="#fafaf9" />
+        <path d="M0-7 7 0 0 7-7 0Z" fill="rgb(var(--color-ink))" />
       )}
       {visual.token === 'double' && (
-        <g fill="#fafaf9">
+        <g fill="rgb(var(--color-ink))">
           <circle cx="-5" r="4" />
           <circle cx="5" r="4" />
         </g>
       )}
       {visual.token === 'cross' && (
-        <g stroke="#fafaf9" strokeWidth="3" strokeLinecap="round">
+        <g stroke="rgb(var(--color-ink))" strokeWidth="3" strokeLinecap="round">
           <path d="M-7-7 7 7M7-7-7 7" />
         </g>
       )}
@@ -119,7 +128,7 @@ export default function SystemDesignCanvas({
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ id: string; pointerId: number }>();
-  const reducedMotion = useReducedMotion() ?? false;
+  const reducedMotion = useHydratedReducedMotion();
   const rawId = useId().replaceAll(':', '');
   const gridId = `system-grid-${rawId}`;
   const failurePatternId = `system-failure-${rawId}`;
@@ -213,7 +222,7 @@ export default function SystemDesignCanvas({
                 <path
                   d="M32 0H0V32"
                   fill="none"
-                  stroke="#2d2d2d"
+                  stroke="rgb(var(--color-line))"
                   strokeWidth="1"
                   opacity=".45"
                 />
@@ -230,7 +239,7 @@ export default function SystemDesignCanvas({
                   y1="0"
                   x2="0"
                   y2="8"
-                  stroke="#fafaf9"
+                  stroke="rgb(var(--color-ink))"
                   strokeWidth="2"
                   opacity=".16"
                 />
@@ -244,7 +253,10 @@ export default function SystemDesignCanvas({
                 markerHeight="6"
                 orient="auto-start-reverse"
               >
-                <path d="M0 0 10 5 0 10Z" fill="#57534e" />
+                <path
+                  d="M0 0 10 5 0 10Z"
+                  fill="rgb(var(--color-line-strong))"
+                />
               </marker>
               <marker
                 id={arrowActiveId}
@@ -255,7 +267,7 @@ export default function SystemDesignCanvas({
                 markerHeight="7"
                 orient="auto-start-reverse"
               >
-                <path d="M0 0 10 5 0 10Z" fill="#fafaf9" />
+                <path d="M0 0 10 5 0 10Z" fill="rgb(var(--color-ink))" />
               </marker>
             </defs>
 
@@ -267,7 +279,7 @@ export default function SystemDesignCanvas({
                 y1={y}
                 x2="1000"
                 y2={y}
-                stroke="#44403c"
+                stroke="rgb(var(--color-line-strong))"
                 strokeDasharray="2 10"
                 opacity=".35"
               />
@@ -277,7 +289,7 @@ export default function SystemDesignCanvas({
                 key={lane.id}
                 x="18"
                 y={22 + index * 140}
-                fill="#57534e"
+                fill="rgb(var(--color-faint))"
                 fontSize="8"
                 letterSpacing="1.4"
               >
@@ -306,7 +318,10 @@ export default function SystemDesignCanvas({
                 active || emphasized ? activePhase : undefined,
               );
               const visual = SYSTEM_EDGE_VISUALS[edgeClass];
-              const stroke = active || emphasized ? '#fafaf9' : '#57534e';
+              const stroke =
+                active || emphasized
+                  ? 'rgb(var(--color-ink))'
+                  : 'rgb(var(--color-line-strong))';
               const staticTokenPoint =
                 activePhase === 'initial'
                   ? geometry.start
@@ -333,7 +348,7 @@ export default function SystemDesignCanvas({
                   <path
                     d={geometry.path}
                     fill="none"
-                    stroke="#050505"
+                    stroke="rgb(var(--color-canvas))"
                     strokeWidth={visual.width + (active ? 6 : 4)}
                     opacity=".9"
                   />
@@ -352,7 +367,7 @@ export default function SystemDesignCanvas({
                     <motion.path
                       d={geometry.path}
                       fill="none"
-                      stroke="#fafaf9"
+                      stroke="rgb(var(--color-ink))"
                       strokeWidth="1.5"
                       pathLength="1"
                       initial={{ pathLength: 0, opacity: 0.4 }}
@@ -365,8 +380,12 @@ export default function SystemDesignCanvas({
                       x={geometry.label.x}
                       y={geometry.label.y}
                       textAnchor="middle"
-                      fill={active || emphasized ? '#fafaf9' : '#78716c'}
-                      stroke="#050505"
+                      fill={
+                        active || emphasized
+                          ? 'rgb(var(--color-ink))'
+                          : 'rgb(var(--color-subtle))'
+                      }
+                      stroke="rgb(var(--color-canvas))"
                       strokeWidth="5"
                       paintOrder="stroke"
                       fontSize="9"
@@ -388,7 +407,7 @@ export default function SystemDesignCanvas({
                       <FlowToken
                         point={staticTokenPoint}
                         visual={visual}
-                        stroke="#fafaf9"
+                        stroke="rgb(var(--color-ink))"
                       />
                     )
                   )}

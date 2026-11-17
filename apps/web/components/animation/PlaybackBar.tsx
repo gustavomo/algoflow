@@ -6,18 +6,23 @@ import type { PlaybackEvent } from '../../lib/xstate/playbackMachine';
 interface Props {
   state: StateFrom<typeof playbackMachine>;
   send: (event: PlaybackEvent) => void;
+  /** Tighter spacing for a bar docked to the bottom of the viewport. */
+  docked?: boolean;
 }
 
-export default function PlaybackBar({ state, send }: Props) {
+export default function PlaybackBar({ state, send, docked = false }: Props) {
   const { stepIndex, totalSteps, speedMs } = state.context;
   return (
-    <div className="mt-5 border-t border-line pt-4">
+    <div
+      data-playback-bar
+      className={`border-t border-line ${docked ? 'pt-2 sm:mt-5 sm:pt-4' : 'mt-5 pt-4'}`}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <button
           aria-label="Previous step"
           onClick={() => send({ type: 'PREV' })}
           disabled={stepIndex === 0}
-          className="border border-line px-3 py-2 text-sm disabled:opacity-30"
+          className="min-h-11 min-w-11 border border-line px-3 py-2 text-sm disabled:opacity-30"
         >
           ←
         </button>
@@ -26,7 +31,7 @@ export default function PlaybackBar({ state, send }: Props) {
           onClick={() =>
             send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' })
           }
-          className="min-w-24 bg-action px-4 py-2 text-sm font-semibold text-canvas"
+          className="min-h-11 min-w-24 bg-action px-4 py-2 text-sm font-semibold text-canvas"
         >
           {state.matches('playing')
             ? 'Pause'
@@ -38,7 +43,7 @@ export default function PlaybackBar({ state, send }: Props) {
           aria-label="Next step"
           onClick={() => send({ type: 'NEXT' })}
           disabled={stepIndex >= totalSteps - 1}
-          className="border border-line px-3 py-2 text-sm disabled:opacity-30"
+          className="min-h-11 min-w-11 border border-line px-3 py-2 text-sm disabled:opacity-30"
         >
           →
         </button>
@@ -50,7 +55,7 @@ export default function PlaybackBar({ state, send }: Props) {
             onChange={(event) =>
               send({ type: 'SPEED', speedMs: Number(event.target.value) })
             }
-            className="border border-line bg-surface px-2 py-2 text-ink-soft"
+            className="min-h-11 border border-line bg-surface px-2 py-2 text-ink-soft"
           >
             <option value={1200}>0.5×</option>
             <option value={700}>1×</option>
@@ -59,7 +64,9 @@ export default function PlaybackBar({ state, send }: Props) {
           </select>
         </label>
       </div>
-      <div className="mt-4 flex items-center gap-3">
+      <div
+        className={`flex items-center gap-3 ${docked ? 'mt-1 sm:mt-4' : 'mt-4'}`}
+      >
         <input
           aria-label="Seek animation step"
           type="range"
@@ -69,13 +76,17 @@ export default function PlaybackBar({ state, send }: Props) {
           onChange={(event) =>
             send({ type: 'SEEK', index: Number(event.target.value) })
           }
-          className="h-1 flex-1 accent-action"
+          className="h-11 min-w-0 flex-1 cursor-pointer accent-action"
         />
-        <span className="min-w-16 text-right font-mono text-[10px] text-subtle">
+        <span className="min-w-16 text-right font-mono text-xs text-subtle sm:text-[10px]">
           {stepIndex + 1} / {totalSteps}
         </span>
       </div>
-      <p className="mt-3 text-[11px] text-faint">Space play/pause · ←/→ step</p>
+      <p
+        className={`text-[11px] text-faint ${docked ? 'hidden sm:mt-3 sm:block' : 'mt-3'}`}
+      >
+        Space play/pause · ←/→ step
+      </p>
     </div>
   );
 }

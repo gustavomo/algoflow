@@ -7,24 +7,24 @@ import type {
   RuntimeScene,
   VisualizationKind,
 } from '@algoflow/contracts';
-import { createBubbleSortSteps } from '../../lib/algorithms/bubbleSort';
-import {
-  createSlidingWindowSteps,
-  createTwoPointerSteps,
-} from '../../lib/algorithms/pointerSteps';
-import { createComplexitySteps } from '../../lib/algorithms/complexitySteps';
-import { createGridTraversalSteps } from '../../lib/algorithms/gridTraversal';
 import playbackMachine from '../../lib/xstate/playbackMachine';
-import BubbleSortViz from '../animation/BubbleSortViz';
+import { targetOwnsKeys } from '../../lib/keyboardTarget';
 import BubbleSortChallenge from './BubbleSortChallenge';
 import ConceptFlowViz from '../animation/ConceptFlowViz';
 import ComplexityViz from '../animation/ComplexityViz';
-import GridTraversalViz from '../animation/GridTraversalViz';
 import PlaybackBar from '../animation/PlaybackBar';
+import PredictChallenge from './PredictChallenge';
 import RuntimeSceneViz from '../animation/RuntimeSceneViz';
-import TwoPointersViz from '../animation/TwoPointersViz';
 
 const RUNTIME_SCENE_SPEED_MS = 1200;
+
+type LessonMode = 'scene' | 'challenge' | 'lab';
+
+const MODE_HINT: Record<LessonMode, string> = {
+  scene: 'Watch the narrated walkthrough at your own pace.',
+  challenge: 'Predict each next step before it is revealed.',
+  lab: 'Pick the pair yourself and ask the tutor for help.',
+};
 
 export default function LessonVizPlayer({
   slug,
@@ -37,52 +37,52 @@ export default function LessonVizPlayer({
   conceptFlow?: ConceptFlowNarrative;
   runtimeScene?: RuntimeScene;
 }) {
-  // Narrated runtime steps need reading time, so they start at the 0.5×
-  // preset. Seeding the machine context (not sending SPEED from an effect)
-  // keeps the server-rendered selector and the hydrated one in agreement.
+  // Narrated steps (scenes and concept flows) need reading time, so they
+  // start at the 0.5× preset. Seeding the machine context (not sending SPEED
+  // from an effect) keeps the server-rendered selector and the hydrated one
+  // in agreement.
+  // A lesson that ships a scene plays it whatever its kind: `bubble-sort`
+  // keeps its own kind only to add the hands-on lab as a third mode.
+  const isScene =
+    visualizationKind === 'runtime-scene' || Boolean(runtimeScene);
+  // The complexity chart is explored, not played: it owns its slider and its
+  // step mode, so it has no step sequence and no playback bar.
+  const isComplexity = visualizationKind === 'complexity' && !isScene;
+  const narrated = isScene || visualizationKind === 'concept-flow';
   const [state, send] = useMachine(() =>
-    visualizationKind === 'runtime-scene'
+    narrated
       ? playbackMachine.withContext({
           ...playbackMachine.context,
           speedMs: RUNTIME_SCENE_SPEED_MS,
         })
       : playbackMachine,
   );
-  const [bubbleMode, setBubbleMode] = useState<'challenge' | 'review'>(
-    'challenge',
+  const [mode, setMode] = useState<LessonMode>('scene');
+  const modes = useMemo<LessonMode[]>(
+    () => [
+      'scene',
+      ...(runtimeScene?.steps.some((step) => step.challenge)
+        ? (['challenge'] as const)
+        : []),
+      ...(visualizationKind === 'bubble-sort' ? (['lab'] as const) : []),
+    ],
+    [runtimeScene, visualizationKind],
   );
   const sequence = useMemo(() => {
-    if (visualizationKind === 'bubble-sort')
-      return createBubbleSortSteps([5, 3, 8, 4, 2]);
-    if (visualizationKind === 'two-pointers') return createTwoPointerSteps();
-    if (visualizationKind === 'sliding-window')
-      return createSlidingWindowSteps();
-    if (visualizationKind === 'complexity') return createComplexitySteps();
-    if (visualizationKind === 'bfs-grid')
-      return createGridTraversalSteps('bfs');
-    if (visualizationKind === 'dfs-grid')
-      return createGridTraversalSteps('dfs');
+    if (isScene && runtimeScene) return runtimeScene.steps;
     if (visualizationKind === 'concept-flow' && conceptFlow)
       return conceptFlow.steps;
-    if (visualizationKind === 'runtime-scene' && runtimeScene)
-      return runtimeScene.steps;
-    return createComplexitySteps();
-  }, [conceptFlow, runtimeScene, visualizationKind]);
+    return [];
+  }, [conceptFlow, isScene, runtimeScene, visualizationKind]);
 
   useEffect(() => {
     send({ type: 'SETUP', totalSteps: sequence.length });
   }, [send, sequence.length, slug]);
   useEffect(() => {
-    if (visualizationKind === 'bubble-sort' && bubbleMode === 'challenge')
-      return;
+    // The challenge and the lab drive themselves; only the scene has playback.
+    if (mode !== 'scene' || isComplexity) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
-      )
-        return;
+      if (targetOwnsKeys(event.target as HTMLElement | null)) return;
       if (event.code === 'Space') {
         event.preventDefault();
         send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' });
@@ -98,41 +98,10 @@ export default function LessonVizPlayer({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [bubbleMode, send, state, visualizationKind]);
+  }, [isComplexity, mode, send, state]);
 
   const index = Math.min(state.context.stepIndex, sequence.length - 1);
-  let visualization = (
-    <ComplexityViz
-      snapshot={
-        sequence[index] as ReturnType<typeof createComplexitySteps>[number]
-      }
-    />
-  );
-  if (visualizationKind === 'bubble-sort')
-    visualization = (
-      <BubbleSortViz
-        snapshot={
-          sequence[index] as ReturnType<typeof createBubbleSortSteps>[number]
-        }
-      />
-    );
-  if (
-    visualizationKind === 'two-pointers' ||
-    visualizationKind === 'sliding-window'
-  ) {
-    const step = sequence[index] as ReturnType<
-      typeof createTwoPointerSteps
-    >[number];
-    visualization = <TwoPointersViz snapshot={step} mode={visualizationKind} />;
-  }
-  if (visualizationKind === 'bfs-grid' || visualizationKind === 'dfs-grid')
-    visualization = (
-      <GridTraversalViz
-        snapshot={
-          sequence[index] as ReturnType<typeof createGridTraversalSteps>[number]
-        }
-      />
-    );
+  let visualization = <ComplexityViz />;
   if (visualizationKind === 'concept-flow' && conceptFlow) {
     visualization = (
       <ConceptFlowViz
@@ -142,7 +111,7 @@ export default function LessonVizPlayer({
     );
   }
 
-  if (visualizationKind === 'runtime-scene')
+  if (isScene)
     visualization = runtimeScene ? (
       <RuntimeSceneViz
         scene={runtimeScene}
@@ -155,57 +124,58 @@ export default function LessonVizPlayer({
       </p>
     );
 
-  if (visualizationKind === 'bubble-sort')
-    return (
-      <div>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-y border-line py-3">
-          <div>
+  const playback = isScene ? (
+    // Scenes are taller than a phone screen and scroll inside the sticky
+    // desktop player: dock the controls so they stay in reach. On phones
+    // the dock sits just above AppShell's fixed mobile navigation.
+    <div className="sticky bottom-[calc(2.5rem+max(.45rem,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t border-line bg-canvas px-4 pb-2 sm:bottom-0 sm:mx-0 sm:border-t-0 sm:px-0 sm:pb-1">
+      <PlaybackBar state={state} send={send} docked />
+    </div>
+  ) : (
+    <PlaybackBar state={state} send={send} />
+  );
+
+  return (
+    <div>
+      {modes.length > 1 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-y border-line py-2 sm:mb-4 sm:py-3">
+          <div className="min-w-0">
             <p className="eyebrow">Learning mode</p>
-            <p className="mt-1 text-xs text-subtle">
-              Predict first, then inspect the full trace.
-            </p>
+            <p className="mt-1 text-xs text-subtle">{MODE_HINT[mode]}</p>
           </div>
-          <div className="flex border border-line p-1">
-            {(['challenge', 'review'] as const).map((mode) => (
+          <div className="flex border border-line p-1" data-lesson-modes>
+            {modes.map((item) => (
               <button
-                key={mode}
+                key={item}
                 onClick={() => {
-                  setBubbleMode(mode);
+                  setMode(item);
                   send({ type: 'RESET' });
                 }}
-                aria-pressed={bubbleMode === mode}
-                className={`min-h-10 px-4 py-2 text-xs font-semibold capitalize ${
-                  bubbleMode === mode
+                aria-pressed={mode === item}
+                className={`min-h-11 px-3 py-2 text-xs font-semibold capitalize sm:px-4 ${
+                  mode === item
                     ? 'bg-ink text-canvas'
                     : 'text-subtle hover:text-ink'
                 }`}
               >
-                {mode}
+                {item}
               </button>
             ))}
           </div>
         </div>
-        {bubbleMode === 'challenge' ? (
-          <BubbleSortChallenge />
-        ) : (
-          <>
-            {visualization}
-            <PlaybackBar state={state} send={send} />
-          </>
-        )}
-      </div>
-    );
-
-  return (
-    <div>
-      {visualization}
-      {visualizationKind === 'runtime-scene' ? (
-        // Tall scenes scroll inside the sticky player; keep the controls in view.
-        <div className="xl:sticky xl:bottom-0 xl:bg-canvas xl:pb-1">
-          <PlaybackBar state={state} send={send} />
-        </div>
+      )}
+      {mode === 'lab' ? (
+        <BubbleSortChallenge />
+      ) : mode === 'challenge' && runtimeScene ? (
+        <PredictChallenge
+          scene={runtimeScene}
+          onWatchScene={() => setMode('scene')}
+        />
       ) : (
-        <PlaybackBar state={state} send={send} />
+        <>
+          {visualization}
+          {!isComplexity && playback}
+        </>
       )}
     </div>
   );

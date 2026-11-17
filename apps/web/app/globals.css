@@ -2,29 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/*
+ * Theme tokens. Components only ever read these semantic names (through the
+ * Tailwind colours or `rgb(var(--color-*))`), never raw colours, so a theme is
+ * one block that redefines the same names. `data-theme` on <html> picks the
+ * block; the inline script in `app/layout.tsx` sets it before first paint.
+ * Values are space-separated RGB channels so Tailwind can apply an alpha.
+ *
+ * Dark theme: a soft charcoal with a slight cool tint instead of pure black.
+ * Off-black keeps white text from glaring and leaves room for two elevation
+ * steps that are told apart by lightness rather than by borders alone.
+ * Contrast against canvas / surface / surface-raised (WCAG 2.1):
+ *   ink 15.3 / 14.2 / 12.8 · ink-soft 11.3 / 10.5 / 9.5 · muted 7.7 / 7.1 / 6.4
+ *   subtle 6.0 / 5.6 / 5.0 (AA body) · faint 4.7 / 4.3 / 3.9 (AA large + UI)
+ */
+:root,
+:root[data-theme='dark'] {
   color-scheme: dark;
-  --color-canvas: 5 5 5;
-  --color-surface: 15 15 15;
-  --color-surface-raised: 24 24 24;
-  --color-ink: 250 250 249;
-  --color-ink-soft: 214 211 209;
-  --color-muted: 168 162 158;
-  --color-subtle: 120 113 108;
-  --color-faint: 87 83 78;
-  --color-line: 45 45 45;
-  --color-line-strong: 87 83 78;
-  --color-action: 250 250 249;
-  --color-action-hover: 231 229 228;
+  /* Elevation: page, cards and panels, then inputs and raised chips. */
+  --color-canvas: 16 18 22; /* #101216 */
+  --color-surface: 23 26 32; /* #171a20 */
+  --color-surface-raised: 31 35 43; /* #1f232b */
+  /* Text, from primary to decorative. */
+  --color-ink: 230 232 236; /* #e6e8ec */
+  --color-ink-soft: 197 201 209; /* #c5c9d1 */
+  --color-muted: 160 166 176; /* #a0a6b0 */
+  --color-subtle: 139 146 158; /* #8b929e */
+  --color-faint: 120 127 140; /* #787f8c */
+  /* Borders: about white at 11% and 24% over the canvas. */
+  --color-line: 42 46 55; /* #2a2e37 */
+  --color-line-strong: 72 78 91; /* #484e5b */
+  --color-action: 230 232 236;
+  --color-action-hover: 205 209 217;
   --color-focus: 255 255 255;
-  --color-success: 134 239 172;
-  --color-warning: 253 224 71;
-  --color-danger: 253 164 175;
-  --color-success-muted: 20 43 29;
-  --color-warning-muted: 50 42 10;
-  --color-danger-muted: 52 23 30;
-  --color-scene-orange: 253 186 116;
-  --color-scene-teal: 94 234 212;
+  /* Status and scene tones, 9:1 or more against every surface. */
+  --color-success: 126 226 168; /* #7ee2a8 */
+  --color-warning: 242 209 92; /* #f2d15c */
+  --color-danger: 255 154 168; /* #ff9aa8 */
+  --color-success-muted: 34 51 45;
+  --color-warning-muted: 52 49 33;
+  --color-danger-muted: 54 40 45;
+  --color-scene-orange: 249 181 114; /* #f9b572 */
+  --color-scene-teal: 95 217 198; /* #5fd9c6 */
+  --shadow-elevated: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+  --shadow-panel: 0 24px 80px rgb(0 0 0 / 0.32);
+}
+
+/*
+ * Light theme: a cool off-white page with white cards on top and a light grey
+ * step for inputs, chips and hover states. Tones are darkened so they still
+ * read as text on every surface and on their own tints.
+ * Contrast against canvas / surface / surface-raised (WCAG 2.1):
+ *   ink 16.9 / 18.1 / 15.7 · ink-soft 10.6 / 11.4 / 9.9 · muted 7.8 / 8.4 / 7.3
+ *   subtle 6.5 / 7.0 / 6.0 · faint 5.4 / 5.8 / 5.0 (every text step is AA body)
+ *   success 6.2 / 6.6 / 5.8 · warning 6.1 / 6.5 / 5.7 · danger 5.9 / 6.4 / 5.5
+ *   scene-orange 5.7 / 6.1 / 5.3 · scene-teal 5.9 / 6.3 / 5.5
+ *   success / warning / danger on their own muted tint: 5.7 / 5.7 / 5.3
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-canvas: 246 247 249; /* #f6f7f9 */
+  --color-surface: 255 255 255; /* #ffffff */
+  --color-surface-raised: 237 239 243; /* #edeff3 */
+  --color-ink: 20 22 27; /* #14161b */
+  --color-ink-soft: 52 58 70; /* #343a46 */
+  --color-muted: 70 78 92; /* #464e5c */
+  --color-subtle: 82 90 104; /* #525a68 */
+  --color-faint: 94 102 116; /* #5e6674 */
+  /* Borders: about black at 10% and 28% over the canvas. */
+  --color-line: 223 226 231; /* #dfe2e7 */
+  --color-line-strong: 178 184 195; /* #b2b8c3 */
+  --color-action: 20 22 27;
+  --color-action-hover: 52 58 70;
+  --color-focus: 20 22 27;
+  --color-success: 14 107 52; /* #0e6b34 */
+  --color-warning: 122 88 0; /* #7a5800 */
+  --color-danger: 186 28 52; /* #ba1c34 */
+  --color-success-muted: 222 244 230;
+  --color-warning-muted: 250 240 204;
+  --color-danger-muted: 253 228 231;
+  --color-scene-orange: 168 66 8; /* #a84208 */
+  --color-scene-teal: 8 108 100; /* #086c64 */
+  --shadow-elevated: 0 20px 40px -16px rgb(20 22 27 / 0.16);
+  --shadow-panel: 0 24px 64px rgb(20 22 27 / 0.1);
 }
 
 * {
@@ -65,6 +125,21 @@ input:disabled,
 select:disabled,
 textarea:disabled {
   cursor: not-allowed;
+}
+
+/* Frontier cells of a grid scene breathe softly while they wait. */
+@keyframes scene-frontier {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+.scene-frontier {
+  animation: scene-frontier 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,12 +1,18 @@
 'use client';
 
 import Editor, { loader } from '@monaco-editor/react';
+import { useSyncExternalStore } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import 'monaco-editor/esm/vs/basic-languages/go/go.contribution';
 import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution';
 import 'monaco-editor/esm/vs/basic-languages/python/python.contribution';
 import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution';
 import 'monaco-editor/esm/vs/language/typescript/monaco.contribution';
+import {
+  getResolvedTheme,
+  getServerResolvedTheme,
+  subscribeTheme,
+} from '../../lib/theme';
 
 if (typeof window !== 'undefined') {
   self.MonacoEnvironment = {
@@ -37,11 +43,16 @@ export default function CodeEditor({
 }: {
   language?: string;
 }) {
+  const theme = useSyncExternalStore(
+    subscribeTheme,
+    getResolvedTheme,
+    getServerResolvedTheme,
+  );
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-line">
       <Editor
         height="300px"
-        theme="vs-dark"
+        theme={theme === 'light' ? 'vs' : 'vs-dark'}
         defaultLanguage={language}
         defaultValue={'// Try the algorithm here\n'}
         options={{

@@ -12,7 +12,7 @@ export default async function AccessPage({
   const next = safeRedirectPath(requestedPath);
   return (
     <main className="min-h-screen bg-canvas px-6 py-16 text-ink">
-      <div className="mx-auto max-w-md rounded-3xl border border-line bg-surface p-8 shadow-2xl shadow-black/40">
+      <div className="mx-auto max-w-md rounded-3xl border border-line bg-surface p-8 shadow-elevated">
         <p className="font-mono text-xs uppercase tracking-[0.28em] text-ink">
           Personal workspace
         </p>

@@ -402,9 +402,14 @@ export default function SystemNodeGlyph({
   onSelect: () => void;
 }) {
   const visual = resolveSystemNodeVisual(node.type);
-  const stroke = active || selected || emphasized ? '#fafaf9' : '#a8a29e';
-  const soft = active ? '#d6d3d1' : '#78716c';
-  const fill = '#0f0f0f';
+  const stroke =
+    active || selected || emphasized
+      ? 'rgb(var(--color-ink))'
+      : 'rgb(var(--color-muted))';
+  const soft = active
+    ? 'rgb(var(--color-ink-soft))'
+    : 'rgb(var(--color-subtle))';
+  const fill = 'rgb(var(--color-surface))';
   const strokeWidth = active ? 2.8 : selected || emphasized ? 2.2 : 1.6;
   const phaseVisual = phase ? SYSTEM_PHASE_VISUALS[phase] : undefined;
   const stateLabel =
@@ -455,13 +460,13 @@ export default function SystemNodeGlyph({
           <circle
             r="46"
             fill={`url(#${failurePatternId})`}
-            stroke="#fafaf9"
+            stroke="rgb(var(--color-ink))"
             strokeWidth="2"
             strokeDasharray="5 4"
           />
         )}
         {phase === 'recovery' && (active || emphasized) && (
-          <g fill="none" stroke="#fafaf9">
+          <g fill="none" stroke="rgb(var(--color-ink))">
             <path
               d="M-43 4A44 44 0 0 1 31-31"
               strokeWidth="2"
@@ -471,7 +476,7 @@ export default function SystemNodeGlyph({
           </g>
         )}
         {phase === 'terminal' && active && (
-          <g fill="none" stroke="#fafaf9" strokeWidth="2">
+          <g fill="none" stroke="rgb(var(--color-ink))" strokeWidth="2">
             <circle r="45" />
             <path d="m26-34 7 7 13-16" />
           </g>
@@ -490,7 +495,7 @@ export default function SystemNodeGlyph({
           x="0"
           y="52"
           textAnchor="middle"
-          fill="#fafaf9"
+          fill="rgb(var(--color-ink))"
           fontSize="13"
           fontWeight="650"
         >
@@ -513,7 +518,7 @@ export default function SystemNodeGlyph({
               x="0"
               y="0"
               textAnchor="middle"
-              fill="#fafaf9"
+              fill="rgb(var(--color-ink))"
               fontSize="8"
               fontWeight="700"
               letterSpacing="1"

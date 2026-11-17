@@ -26,7 +26,8 @@ const config: Config = {
         'danger-muted': 'rgb(var(--color-danger-muted) / <alpha-value>)',
       },
       boxShadow: {
-        panel: '0 24px 80px rgba(0, 0, 0, 0.32)',
+        elevated: 'var(--shadow-elevated)',
+        panel: 'var(--shadow-panel)',
       },
     },
   },

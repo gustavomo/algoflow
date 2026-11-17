@@ -38,17 +38,28 @@ export default async function LessonPage({
   return (
     <AppShell>
       <div className="flex flex-wrap items-center gap-2 text-sm text-subtle">
-        <Link href="/lessons" className="hover:text-white">
+        <Link href="/lessons" className="hover:text-ink">
           Lessons
         </Link>
         <span>/</span>
-        <Link href={`/topics/${topic.slug}`} className="hover:text-white">
+        <Link href={`/topics/${topic.slug}`} className="hover:text-ink">
           {topic.title}
         </Link>
         <span>/</span>
         <span>{lesson.title}</span>
       </div>
       <div className="mt-8 grid min-w-0 gap-10 xl:grid-cols-[minmax(0,.86fr)_minmax(520px,1.14fr)]">
+        {/* The player comes first in the DOM so that on phones, where it sits
+            above the article, scroll anchoring holds its top edge still while
+            a scene grows or shrinks between steps. */}
+        <section className="min-w-0 xl:order-last xl:sticky xl:top-24 xl:max-h-[calc(100vh-6.5rem)] xl:self-start xl:overflow-y-auto">
+          <LessonVizPlayer
+            slug={lesson.slug}
+            visualization={lesson.visualization}
+            conceptFlow={lesson.conceptFlow}
+            runtimeScene={lesson.runtimeScene}
+          />
+        </section>
         <article className="min-w-0">
           <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ink">
             <span>{lesson.tech}</span>
@@ -81,14 +92,6 @@ export default async function LessonPage({
             lessonSlug={lesson.slug}
           />
         </article>
-        <section className="order-first min-w-0 xl:order-none xl:sticky xl:top-24 xl:max-h-[calc(100vh-6.5rem)] xl:self-start xl:overflow-y-auto">
-          <LessonVizPlayer
-            slug={lesson.slug}
-            visualization={lesson.visualization}
-            conceptFlow={lesson.conceptFlow}
-            runtimeScene={lesson.runtimeScene}
-          />
-        </section>
       </div>
     </AppShell>
   );
