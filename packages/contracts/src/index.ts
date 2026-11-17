@@ -104,16 +104,10 @@ export type VisualizationKind =
 export const VISUAL_SCENE_KINDS = [
   'growth-curves',
   'sorting-bars',
-  'pointer-search',
   'sliding-window',
   'grid-traversal',
   'system-boundaries',
-  'event-loop',
   'cdn-route',
-  'relational-schema',
-  'container-layers',
-  'vector-space',
-  'agent-loop',
   'active-reading',
   'impact-ripple',
   'strategy-map',
@@ -418,13 +412,6 @@ export interface RuntimeScene {
   steps: RuntimeSceneStep[];
 }
 
-export interface VisualBlueprint {
-  version: 1;
-  scene: VisualSceneKind;
-  objective: string;
-  terminalEvidence: string;
-}
-
 export interface TopicDefinition {
   slug: string;
   title: string;
@@ -499,7 +486,6 @@ export interface LearningPathDefinition {
   lessonSlugs: string[];
   estimatedMinutes: number;
   assessmentSlug?: string;
-  visualBlueprint: VisualBlueprint;
 }
 
 export const ASSESSMENT_INTENTS = [

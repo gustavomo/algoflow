@@ -1829,8 +1829,6 @@ export function validateMasteryCoverage(
       diagnostic.mode !== 'diagnostic'
     )
       errors.push(`${path.slug}: incomplete path must remain diagnostic-only`);
-    if (!path.visualBlueprint || path.visualBlueprint.version !== 1)
-      errors.push(`${path.slug}: missing visual mastery blueprint`);
   }
   return Array.from(new Set(errors));
 }
