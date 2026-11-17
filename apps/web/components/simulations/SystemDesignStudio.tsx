@@ -238,20 +238,15 @@ export default function SystemDesignStudio({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
       const action = resolveStudioKey(
         event,
-        classifyStudioKeyTarget({
-          tagName: target?.tagName,
-          isContentEditable: target?.isContentEditable,
-          insideNode: Boolean(target?.closest?.('[data-system-node]')),
-        }),
-        Boolean(selectedId),
+        classifyStudioKeyTarget(event.target as HTMLElement | null),
       );
       if (!action) return;
       event.preventDefault();
-      if (action.type === 'remove') removeSelected();
-      else if (action.type === 'nudge') nudge(action.dx, action.dy);
+      if (action.type === 'remove') removeNode(action.nodeId);
+      else if (action.type === 'nudge')
+        nudge(action.nodeId, action.dx, action.dy);
       else if (action.type === 'toggle-play')
         sendActive({
           type: activePlayback.matches('playing') ? 'PAUSE' : 'PLAY',
@@ -354,16 +349,14 @@ export default function SystemDesignStudio({
     if (next.message) setMessage(next.message);
   }
 
-  function removeSelected() {
-    if (!selectedId) return;
+  function removeNode(id: string) {
+    if (!graph.nodes.some((node) => node.id === id)) return;
     setGraph({
-      nodes: graph.nodes.filter((node) => node.id !== selectedId),
-      edges: graph.edges.filter(
-        (edge) => edge.from !== selectedId && edge.to !== selectedId,
-      ),
+      nodes: graph.nodes.filter((node) => node.id !== id),
+      edges: graph.edges.filter((edge) => edge.from !== id && edge.to !== id),
     });
-    setSelectedId(undefined);
-    setConnectingFrom(undefined);
+    if (selectedId === id) setSelectedId(undefined);
+    if (connectingFrom === id) setConnectingFrom(undefined);
     setMessage('Block and incident connections removed.');
   }
 
@@ -388,12 +381,11 @@ export default function SystemDesignStudio({
     });
   }
 
-  function nudge(dx: number, dy: number) {
-    if (!selectedId) return;
+  function nudge(id: string, dx: number, dy: number) {
     setGraph({
       ...graph,
       nodes: graph.nodes.map((node) =>
-        node.id === selectedId
+        node.id === id
           ? {
               ...node,
               x: Math.max(70, Math.min(930, node.x + dx)),
@@ -800,14 +792,16 @@ export default function SystemDesignStudio({
               ].map(([label, dx, dy]) => (
                 <button
                   key={String(label)}
-                  onClick={() => nudge(Number(dx), Number(dy))}
+                  onClick={() =>
+                    selectedId && nudge(selectedId, Number(dx), Number(dy))
+                  }
                   className="button-secondary h-11 w-11 text-sm"
                 >
                   {label}
                 </button>
               ))}
               <button
-                onClick={removeSelected}
+                onClick={() => selectedId && removeNode(selectedId)}
                 className="min-h-11 rounded-xl border border-danger/40 px-3 py-2 text-xs text-danger"
               >
                 Remove block

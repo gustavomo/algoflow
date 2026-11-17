@@ -5,6 +5,7 @@ import {
   classifyStudioKeyTarget,
   resolveStudioKey,
 } from './designLabInteraction';
+import type { KeyTargetLike } from '../keyboardTarget';
 
 const graph: SystemDesignGraph = {
   nodes: [
@@ -14,44 +15,88 @@ const graph: SystemDesignGraph = {
   edges: [],
 };
 
+function el(
+  tagName: string,
+  attributes: Record<string, string> = {},
+  parentElement: KeyTargetLike | null = null,
+): KeyTargetLike {
+  return {
+    tagName,
+    getAttribute: (name) => attributes[name] ?? null,
+    hasAttribute: (name) => name in attributes,
+    parentElement,
+  };
+}
+
+const nodeA = el('g', { role: 'button', 'data-system-node': 'a' });
+const nodeB = el('g', { role: 'button', 'data-system-node': 'b' });
+const ghost = el('g', {
+  role: 'button',
+  'data-system-node': 'ghost-cache',
+  'data-system-ghost': '',
+});
+const node = (nodeId: string) => ({ kind: 'node', nodeId }) as const;
+
 describe('design lab key routing', () => {
-  it('classifies form controls, canvas nodes and everything else', () => {
-    expect(classifyStudioKeyTarget({ tagName: 'input' })).toBe('control');
-    expect(classifyStudioKeyTarget({ tagName: 'BUTTON' })).toBe('control');
+  it('classifies controls, blocks, ghosts and everything else', () => {
+    expect(classifyStudioKeyTarget(el('INPUT'))).toEqual({ kind: 'control' });
+    expect(classifyStudioKeyTarget(el('BUTTON'))).toEqual({ kind: 'control' });
+    expect(classifyStudioKeyTarget(el('A'))).toEqual({ kind: 'control' });
     expect(
       classifyStudioKeyTarget({ tagName: 'DIV', isContentEditable: true }),
-    ).toBe('control');
-    expect(classifyStudioKeyTarget({ tagName: 'g', insideNode: true })).toBe(
-      'node',
-    );
-    expect(classifyStudioKeyTarget({ tagName: 'BODY' })).toBe('other');
+    ).toEqual({ kind: 'control' });
+    expect(classifyStudioKeyTarget(nodeA)).toEqual(node('a'));
+    expect(classifyStudioKeyTarget(el('text', {}, nodeB))).toEqual(node('b'));
+    expect(classifyStudioKeyTarget(ghost)).toEqual({ kind: 'ghost' });
+    expect(classifyStudioKeyTarget(el('BODY'))).toEqual({ kind: 'other' });
+    expect(classifyStudioKeyTarget(null)).toEqual({ kind: 'other' });
   });
 
-  it('lets a focused node consume Space and Enter instead of toggling play', () => {
-    expect(resolveStudioKey({ key: ' ', code: 'Space' }, 'node', true)).toBe(
-      null,
-    );
-    expect(resolveStudioKey({ key: 'Enter' }, 'node', true)).toBe(null);
+  it('lets a focused block or ghost consume Space and Enter', () => {
+    for (const target of [node('a'), { kind: 'ghost' } as const]) {
+      expect(resolveStudioKey({ key: ' ', code: 'Space' }, target)).toBe(null);
+      expect(resolveStudioKey({ key: 'Enter' }, target)).toBe(null);
+    }
     expect(
-      resolveStudioKey({ key: ' ', code: 'Space' }, 'other', false),
+      resolveStudioKey({ key: ' ', code: 'Space' }, { kind: 'other' }),
     ).toEqual({ type: 'toggle-play' });
   });
 
-  it('keeps delete, nudge and stepping available on a focused node', () => {
-    expect(resolveStudioKey({ key: 'Delete' }, 'node', true)).toEqual({
+  it('deletes and nudges the focused block, not the selected one', () => {
+    // Click block A (selects it), Tab to block B, press Delete: B goes.
+    const focused = classifyStudioKeyTarget(nodeB);
+    expect(resolveStudioKey({ key: 'Delete' }, focused)).toEqual({
       type: 'remove',
+      nodeId: 'b',
     });
-    expect(
-      resolveStudioKey({ key: 'ArrowUp', altKey: true }, 'node', true),
-    ).toEqual({ type: 'nudge', dx: 0, dy: -20 });
-    expect(resolveStudioKey({ key: 'ArrowRight' }, 'node', true)).toEqual({
+    expect(resolveStudioKey({ key: 'Backspace' }, focused)).toEqual({
+      type: 'remove',
+      nodeId: 'b',
+    });
+    expect(resolveStudioKey({ key: 'ArrowUp', altKey: true }, focused)).toEqual(
+      { type: 'nudge', nodeId: 'b', dx: 0, dy: -20 },
+    );
+    expect(resolveStudioKey({ key: 'ArrowRight' }, focused)).toEqual({
       type: 'next',
     });
   });
 
-  it('ignores every shortcut inside form controls', () => {
+  it('never deletes or nudges from a ghost or an unfocused canvas', () => {
+    for (const target of [
+      { kind: 'ghost' } as const,
+      { kind: 'other' } as const,
+    ]) {
+      expect(resolveStudioKey({ key: 'Delete' }, target)).toBe(null);
+      expect(resolveStudioKey({ key: 'Backspace' }, target)).toBe(null);
+      expect(resolveStudioKey({ key: 'ArrowLeft', altKey: true }, target)).toBe(
+        null,
+      );
+    }
+  });
+
+  it('ignores every shortcut inside controls', () => {
     for (const key of [' ', 'Enter', 'Delete', 'ArrowLeft'])
-      expect(resolveStudioKey({ key }, 'control', true)).toBe(null);
+      expect(resolveStudioKey({ key }, { kind: 'control' })).toBe(null);
   });
 });
 

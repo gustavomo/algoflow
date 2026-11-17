@@ -207,6 +207,7 @@ function GhostSuggestionMark({
           role="button"
           tabIndex={0}
           data-system-node={ghost.id}
+          data-system-ghost
           aria-label={`Connect ${from.label} to ${to.label}. ${ghost.reason}`}
           transform={`translate(${geometry.middle.x} ${geometry.middle.y}) scale(${scale})`}
           onClick={onPlace}
@@ -262,6 +263,7 @@ function GhostSuggestionMark({
         role="button"
         tabIndex={0}
         data-system-node={ghost.id}
+        data-system-ghost
         aria-label={`Place suggested ${name} block. ${ghost.reason}`}
         transform={`translate(${ghost.x} ${ghost.y}) scale(${compact ? scale : 1})`}
         onClick={onPlace}
