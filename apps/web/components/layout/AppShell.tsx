@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import ThemeToggle from './ThemeToggle';
 
 const desktopLinks = [
   ['Dashboard', '/dashboard'],
@@ -23,10 +24,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen min-w-0">
       <header className="sticky top-0 z-40 border-b border-line bg-canvas/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl min-w-0 items-center justify-between gap-6 px-4 py-4 sm:px-5">
+        <div className="mx-auto flex max-w-7xl min-w-0 items-center gap-3 px-4 py-2.5 sm:gap-6 sm:px-5">
           <Link
             href="/dashboard"
-            className="flex items-center gap-3 font-semibold tracking-tight"
+            className="mr-auto flex items-center gap-3 font-semibold tracking-tight"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg border border-line-strong bg-ink font-mono text-xs text-canvas">
               AF
@@ -47,6 +48,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
+          <ThemeToggle />
         </div>
       </header>
       <main className="mx-auto min-w-0 max-w-7xl px-4 py-8 pb-28 sm:px-5 sm:py-10 sm:pb-10">

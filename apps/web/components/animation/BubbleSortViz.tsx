@@ -58,7 +58,7 @@ export default function BubbleSortViz({
   };
 
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-2xl shadow-black/40">
+    <div className="overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-elevated">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4 font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">
         <span>
           Bubble Sort ·{' '}

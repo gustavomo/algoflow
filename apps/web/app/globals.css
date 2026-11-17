@@ -4,9 +4,9 @@
 
 /*
  * Theme tokens. Components only ever read these semantic names (through the
- * Tailwind colours or `rgb(var(--color-*))`), never raw colours, so another
- * theme is one more block that redefines the same names, e.g.
- * `:root[data-theme='light'] { color-scheme: light; --color-canvas: ...; }`.
+ * Tailwind colours or `rgb(var(--color-*))`), never raw colours, so a theme is
+ * one block that redefines the same names. `data-theme` on <html> picks the
+ * block; the inline script in `app/layout.tsx` sets it before first paint.
  * Values are space-separated RGB channels so Tailwind can apply an alpha.
  *
  * Dark theme: a soft charcoal with a slight cool tint instead of pure black.
@@ -44,6 +44,47 @@
   --color-danger-muted: 54 40 45;
   --color-scene-orange: 249 181 114; /* #f9b572 */
   --color-scene-teal: 95 217 198; /* #5fd9c6 */
+  --shadow-elevated: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+  --shadow-panel: 0 24px 80px rgb(0 0 0 / 0.32);
+}
+
+/*
+ * Light theme: a cool off-white page with white cards on top and a light grey
+ * step for inputs, chips and hover states. Tones are darkened so they still
+ * read as text on every surface and on their own tints.
+ * Contrast against canvas / surface / surface-raised (WCAG 2.1):
+ *   ink 16.9 / 18.1 / 15.7 · ink-soft 10.6 / 11.4 / 9.9 · muted 7.8 / 8.4 / 7.3
+ *   subtle 6.5 / 7.0 / 6.0 · faint 5.4 / 5.8 / 5.0 (every text step is AA body)
+ *   success 6.2 / 6.6 / 5.8 · warning 6.1 / 6.5 / 5.7 · danger 5.9 / 6.4 / 5.5
+ *   scene-orange 5.7 / 6.1 / 5.3 · scene-teal 5.9 / 6.3 / 5.5
+ *   success / warning / danger on their own muted tint: 5.7 / 5.7 / 5.3
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-canvas: 246 247 249; /* #f6f7f9 */
+  --color-surface: 255 255 255; /* #ffffff */
+  --color-surface-raised: 237 239 243; /* #edeff3 */
+  --color-ink: 20 22 27; /* #14161b */
+  --color-ink-soft: 52 58 70; /* #343a46 */
+  --color-muted: 70 78 92; /* #464e5c */
+  --color-subtle: 82 90 104; /* #525a68 */
+  --color-faint: 94 102 116; /* #5e6674 */
+  /* Borders: about black at 10% and 28% over the canvas. */
+  --color-line: 223 226 231; /* #dfe2e7 */
+  --color-line-strong: 178 184 195; /* #b2b8c3 */
+  --color-action: 20 22 27;
+  --color-action-hover: 52 58 70;
+  --color-focus: 20 22 27;
+  --color-success: 14 107 52; /* #0e6b34 */
+  --color-warning: 122 88 0; /* #7a5800 */
+  --color-danger: 186 28 52; /* #ba1c34 */
+  --color-success-muted: 222 244 230;
+  --color-warning-muted: 250 240 204;
+  --color-danger-muted: 253 228 231;
+  --color-scene-orange: 168 66 8; /* #a84208 */
+  --color-scene-teal: 8 108 100; /* #086c64 */
+  --shadow-elevated: 0 20px 40px -16px rgb(20 22 27 / 0.16);
+  --shadow-panel: 0 24px 64px rgb(20 22 27 / 0.1);
 }
 
 * {

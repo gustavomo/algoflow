@@ -43,7 +43,7 @@ export default function LandingPage() {
             </Link>
           </div>
         </section>
-        <section className="relative rounded-[2rem] border border-line bg-surface p-7 shadow-2xl shadow-black/40">
+        <section className="relative rounded-[2rem] border border-line bg-surface p-7 shadow-elevated">
           <div className="absolute inset-x-8 top-0 h-px bg-ink/60" />
           <div className="relative">
             <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-subtle">
