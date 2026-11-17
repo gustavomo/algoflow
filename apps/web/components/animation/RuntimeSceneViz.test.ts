@@ -56,7 +56,7 @@ describe('RuntimeSceneViz source contract', () => {
 
   it('announces narration and honours reduced motion', () => {
     expect(source).toContain('aria-live="polite"');
-    expect(source).toContain('useReducedMotion()');
+    expect(source).toContain('useHydratedReducedMotion()');
     expect(source).toContain('reduced ? INSTANT : MOVE');
     expect(source).toContain('motion-reduce:animate-none');
   });

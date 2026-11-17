@@ -7,7 +7,8 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
+import { LayoutGroup, motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type {
   RuntimeScene,
   RuntimeSceneActionTone,
@@ -640,7 +641,7 @@ export default function RuntimeSceneViz({
    */
   sceneFirst?: boolean;
 }) {
-  const reduced = Boolean(useReducedMotion());
+  const reduced = useHydratedReducedMotion();
   const sceneFirst =
     sceneFirstProp ??
     scene.regions.some((region) =>

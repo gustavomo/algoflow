@@ -1,7 +1,8 @@
 'use client';
 
 import { useId, useRef } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type { SystemDesignGraph, VisualStagePhase } from '@algoflow/contracts';
 import {
   SYSTEM_CANVAS_LANES,
@@ -127,7 +128,7 @@ export default function SystemDesignCanvas({
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ id: string; pointerId: number }>();
-  const reducedMotion = useReducedMotion() ?? false;
+  const reducedMotion = useHydratedReducedMotion();
   const rawId = useId().replaceAll(':', '');
   const gridId = `system-grid-${rawId}`;
   const failurePatternId = `system-failure-${rawId}`;

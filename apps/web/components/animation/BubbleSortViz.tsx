@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type { BubbleSortSnapshot } from '@algoflow/learning-engine';
 import {
   BUBBLE_VIEW_WIDTH,
@@ -33,7 +34,7 @@ export default function BubbleSortViz({
   onSelectItem?: (itemId: string) => void;
   onSwapIntent?: (itemIds: [string, string]) => void;
 }) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useHydratedReducedMotion();
   const max = Math.max(...snapshot.items.map((item) => item.value), 1);
   const layout = bubbleBarLayout(snapshot.items.length);
   const { barWidth } = layout;
