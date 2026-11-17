@@ -421,11 +421,14 @@ export default function SystemNodeGlyph({
       role="button"
       tabIndex={0}
       aria-label={`${node.label}, ${node.type.replaceAll('-', ' ')}, ${visual.meaning}, ${stateLabel}`}
-      onFocus={onSelect}
+      data-system-node={node.id}
       onKeyDown={(event) => {
+        // Activation is explicit: focus alone never selects or connects, and
+        // the node consumes Space and Enter so playback does not toggle too.
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onSelect();
+          event.stopPropagation();
+          if (!event.repeat) onSelect();
         }
       }}
       onPointerDown={onPointerDown}

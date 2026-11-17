@@ -18,6 +18,11 @@ import {
 } from '@algoflow/contracts';
 import playbackMachine from '../../lib/xstate/playbackMachine';
 import { createSystemFlowSteps } from '../../lib/simulations/flowSteps';
+import {
+  activateNode,
+  classifyStudioKeyTarget,
+  resolveStudioKey,
+} from '../../lib/simulations/designLabInteraction';
 import PlaybackBar from '../animation/PlaybackBar';
 import ProviderControls from '../ai/ProviderControls';
 import SystemDesignCanvas from './SystemDesignCanvas';
@@ -144,40 +149,23 @@ export default function SystemDesignStudio({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName))
-      )
-        return;
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
-        event.preventDefault();
-        removeSelected();
-        return;
-      }
-      if (
-        event.altKey &&
-        selectedId &&
-        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
-      ) {
-        event.preventDefault();
-        const dx =
-          event.key === 'ArrowLeft' ? -20 : event.key === 'ArrowRight' ? 20 : 0;
-        const dy =
-          event.key === 'ArrowUp' ? -20 : event.key === 'ArrowDown' ? 20 : 0;
-        nudge(dx, dy);
-        return;
-      }
-      if (event.code === 'Space') {
-        event.preventDefault();
+      const action = resolveStudioKey(
+        event,
+        classifyStudioKeyTarget({
+          tagName: target?.tagName,
+          isContentEditable: target?.isContentEditable,
+          insideNode: Boolean(target?.closest?.('[data-system-node]')),
+        }),
+        Boolean(selectedId),
+      );
+      if (!action) return;
+      event.preventDefault();
+      if (action.type === 'remove') removeSelected();
+      else if (action.type === 'nudge') nudge(action.dx, action.dy);
+      else if (action.type === 'toggle-play')
         send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' });
-      } else if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        send({ type: 'PREV' });
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        send({ type: 'NEXT' });
-      }
+      else if (action.type === 'prev') send({ type: 'PREV' });
+      else send({ type: 'NEXT' });
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -207,26 +195,16 @@ export default function SystemDesignStudio({
   }
 
   function selectNode(id: string) {
-    if (connectingFrom && connectingFrom !== id) {
-      const duplicate = graph.edges.some(
-        (edge) => edge.from === connectingFrom && edge.to === id,
-      );
-      if (duplicate) setMessage('Those blocks are already connected.');
-      else
-        setGraph({
-          ...graph,
-          edges: [
-            ...graph.edges,
-            {
-              id: `edge-${Date.now().toString(36)}`,
-              from: connectingFrom,
-              to: id,
-            },
-          ],
-        });
-      setConnectingFrom(undefined);
-    }
-    setSelectedId(id);
+    const next = activateNode(
+      graph,
+      connectingFrom,
+      id,
+      `edge-${Date.now().toString(36)}`,
+    );
+    if (next.graph !== graph) setGraph(next.graph);
+    setConnectingFrom(next.connectingFrom);
+    setSelectedId(next.selectedId);
+    if (next.message) setMessage(next.message);
   }
 
   function removeSelected() {
