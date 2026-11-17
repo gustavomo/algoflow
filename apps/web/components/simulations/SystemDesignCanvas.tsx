@@ -775,7 +775,12 @@ export default function SystemDesignCanvas({
                       id: node.id,
                       pointerId: event.pointerId,
                     };
-                    svgRef.current?.setPointerCapture(event.pointerId);
+                    try {
+                      svgRef.current?.setPointerCapture(event.pointerId);
+                    } catch {
+                      // The pointer is already gone (e.g. a synthetic or
+                      // cancelled event); dragging simply does not start.
+                    }
                   }}
                 />
               );

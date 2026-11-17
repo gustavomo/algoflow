@@ -25,6 +25,7 @@ import {
   type TraceFrame,
 } from '../../lib/simulations/flowTrace';
 import {
+  freeSpot,
   suggestGhosts,
   type GhostSuggestion,
 } from '../../lib/simulations/ghostSuggestions';
@@ -265,6 +266,16 @@ export default function SystemDesignStudio({
   function addBlock() {
     const sequence = graph.nodes.length + 1;
     const id = `${blockType}-${Date.now().toString(36)}`;
+    // Start from the old cycling slot, then step to a spot clear of blocks
+    // and ghosts so a new block never lands on top of another.
+    const spot = freeSpot(
+      120 + ((sequence * 155) % 760),
+      100 + ((Math.floor(sequence / 5) * 130) % 360),
+      [
+        ...graph.nodes,
+        ...ghosts.flatMap((ghost) => (ghost.kind === 'node' ? [ghost] : [])),
+      ],
+    );
     setGraph({
       ...graph,
       nodes: [
@@ -273,8 +284,8 @@ export default function SystemDesignStudio({
           id,
           type: blockType,
           label: nodeLabel(blockType),
-          x: 120 + ((sequence * 155) % 760),
-          y: 100 + ((Math.floor(sequence / 5) * 130) % 360),
+          x: spot.x,
+          y: spot.y,
           config: {},
         },
       ],
@@ -588,7 +599,10 @@ export default function SystemDesignStudio({
                   }
                 : undefined
             }
-            complete={activePlayback.matches('completed')}
+            complete={
+              activePlayback.matches('completed') &&
+              traceFrame?.tone !== 'error'
+            }
             ghosts={ghosts}
             onPlaceGhost={placeGhost}
             footer={
