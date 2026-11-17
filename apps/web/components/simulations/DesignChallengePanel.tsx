@@ -146,7 +146,7 @@ export default function DesignChallengePanel({
                     type="button"
                     onClick={() => send({ type: 'PREDICT', prediction })}
                     aria-pressed={state.context.prediction === prediction}
-                    className={`min-h-10 rounded-full border px-3 py-2 text-xs transition ${
+                    className={`min-h-11 rounded-full border px-3 py-2 text-xs transition ${
                       state.context.prediction === prediction
                         ? 'border-ink bg-ink text-canvas'
                         : 'border-line text-subtle hover:border-line-strong hover:text-ink'
@@ -291,7 +291,7 @@ export default function DesignChallengePanel({
                 <button
                   type="button"
                   onClick={() => send({ type: 'INSPECT' })}
-                  className="button-secondary mt-3 px-3 py-2 text-xs"
+                  className="button-secondary mt-3 min-h-11 px-3 py-2 text-xs"
                 >
                   Inspect the trace
                 </button>
@@ -300,7 +300,7 @@ export default function DesignChallengePanel({
               <button
                 type="button"
                 onClick={() => send({ type: 'REFLECT' })}
-                className="button-secondary px-4 py-2 text-sm"
+                className="button-secondary min-h-11 px-4 py-2 text-sm"
               >
                 Reflect on the outcome
               </button>
@@ -308,7 +308,7 @@ export default function DesignChallengePanel({
             <button
               type="button"
               onClick={reset}
-              className="text-xs text-subtle underline"
+              className="min-h-11 text-xs text-subtle underline"
             >
               Reset challenge
             </button>

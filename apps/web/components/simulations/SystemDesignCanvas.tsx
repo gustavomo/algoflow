@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type { SystemDesignGraph, VisualStagePhase } from '@algoflow/contracts';
@@ -10,6 +10,7 @@ import {
   SYSTEM_PHASE_VISUALS,
   buildSystemEdgeGeometry,
   resolveSystemNodeVisual,
+  systemLabelScale,
   classifySystemEdge,
   parallelEdgePosition,
   type ActiveSystemFlow,
@@ -37,7 +38,9 @@ function RequestToken({
   durationMs,
   shape,
   reducedMotion,
+  scale,
 }: {
+  scale: number;
   frame: TraceFrame;
   graph: SystemDesignGraph;
   stepIndex: number;
@@ -85,43 +88,45 @@ function RequestToken({
           : { duration: 0 }
       }
     >
-      <circle
-        r="12"
-        fill="rgb(var(--color-canvas))"
-        stroke={color}
-        strokeWidth="2.5"
-      />
-      {shape === 'square' && (
-        <rect x="-5" y="-5" width="10" height="10" fill={color} />
-      )}
-      {shape === 'diamond' && <path d="M0-7 7 0 0 7-7 0Z" fill={color} />}
-      {shape === 'double' && (
-        <g fill={color}>
-          <circle cx="-4" r="3.5" />
-          <circle cx="4" r="3.5" />
-        </g>
-      )}
-      {shape === 'cross' && (
-        <path
-          d="M-5-5 5 5M5-5-5 5"
+      <g transform={`scale(${Math.min(scale, 2.4)})`}>
+        <circle
+          r="12"
+          fill="rgb(var(--color-canvas))"
           stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
+          strokeWidth="2.5"
         />
-      )}
-      {shape === 'circle' && <circle r="5.5" fill={color} />}
-      <text
-        y="-19"
-        textAnchor="middle"
-        fill={color}
-        stroke="rgb(var(--color-canvas))"
-        strokeWidth="4"
-        paintOrder="stroke"
-        fontSize="11"
-        fontWeight="700"
-      >
-        {`${frame.totalMs}ms`}
-      </text>
+        {shape === 'square' && (
+          <rect x="-5" y="-5" width="10" height="10" fill={color} />
+        )}
+        {shape === 'diamond' && <path d="M0-7 7 0 0 7-7 0Z" fill={color} />}
+        {shape === 'double' && (
+          <g fill={color}>
+            <circle cx="-4" r="3.5" />
+            <circle cx="4" r="3.5" />
+          </g>
+        )}
+        {shape === 'cross' && (
+          <path
+            d="M-5-5 5 5M5-5-5 5"
+            stroke={color}
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+        )}
+        {shape === 'circle' && <circle r="5.5" fill={color} />}
+        <text
+          y="-19"
+          textAnchor="middle"
+          fill={color}
+          stroke="rgb(var(--color-canvas))"
+          strokeWidth="4"
+          paintOrder="stroke"
+          fontSize="11"
+          fontWeight="700"
+        >
+          {`${frame.totalMs}ms`}
+        </text>
+      </g>
     </motion.g>
   );
 }
@@ -174,10 +179,13 @@ function GhostSuggestionMark({
   ghost,
   graph,
   onPlace,
+  scale,
 }: {
   ghost: GhostSuggestion;
   graph: SystemDesignGraph;
   onPlace: () => void;
+  /** Enlarges the affordance on small screens (see systemLabelScale). */
+  scale: number;
 }) {
   const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
   const stroke = 'rgb(var(--color-subtle))';
@@ -200,7 +208,7 @@ function GhostSuggestionMark({
           tabIndex={0}
           data-system-node={ghost.id}
           aria-label={`Connect ${from.label} to ${to.label}. ${ghost.reason}`}
-          transform={`translate(${geometry.middle.x} ${geometry.middle.y})`}
+          transform={`translate(${geometry.middle.x} ${geometry.middle.y}) scale(${scale})`}
           onClick={onPlace}
           onKeyDown={ghostKeyDown(onPlace)}
           style={{ cursor: 'pointer' }}
@@ -226,6 +234,8 @@ function GhostSuggestionMark({
   }
   const visual = resolveSystemNodeVisual(ghost.nodeType);
   const name = ghost.nodeType.replaceAll('-', ' ');
+  // On a small canvas: a compact "+" tile, scaled up to stay tappable.
+  const compact = scale > 1.3;
   const wires = [
     ghost.connectFromId ? nodes.get(ghost.connectFromId) : undefined,
     ghost.connectToId ? nodes.get(ghost.connectToId) : undefined,
@@ -253,64 +263,110 @@ function GhostSuggestionMark({
         tabIndex={0}
         data-system-node={ghost.id}
         aria-label={`Place suggested ${name} block. ${ghost.reason}`}
-        transform={`translate(${ghost.x} ${ghost.y})`}
+        transform={`translate(${ghost.x} ${ghost.y}) scale(${compact ? scale : 1})`}
         onClick={onPlace}
         onKeyDown={ghostKeyDown(onPlace)}
         style={{ cursor: 'pointer' }}
       >
         <title>{`Suggested ${name} · ${ghost.reason}`}</title>
-        <rect
-          x="-62"
-          y="-50"
-          width="124"
-          height="128"
-          rx="10"
-          fill="rgb(var(--color-canvas))"
-          fillOpacity=".75"
-          stroke={stroke}
-          strokeWidth="1.5"
-          strokeDasharray="6 5"
-        />
-        <text
-          y="-14"
-          textAnchor="middle"
-          fill="rgb(var(--color-subtle))"
-          fontSize="20"
-          fontWeight="700"
-          letterSpacing="1"
-        >
-          {visual.mark}
-        </text>
-        <text
-          y="14"
-          textAnchor="middle"
-          fill="rgb(var(--color-ink-soft))"
-          fontSize="13"
-          fontWeight="600"
-        >
-          {name}
-        </text>
-        <rect
-          x="-48"
-          y="32"
-          width="96"
-          height="34"
-          rx="17"
-          fill="rgb(var(--color-action))"
-        />
-        <text
-          y="54"
-          textAnchor="middle"
-          fill="rgb(var(--color-canvas))"
-          fontSize="13"
-          fontWeight="700"
-        >
-          + Place
-        </text>
+        {compact ? (
+          <>
+            <rect
+              x="-26"
+              y="-26"
+              width="52"
+              height="52"
+              rx="8"
+              fill="rgb(var(--color-canvas))"
+              fillOpacity=".8"
+              stroke="rgb(var(--color-ink))"
+              strokeWidth="1.5"
+              strokeDasharray="5 4"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d="M-9 0h18M0-9v18"
+              stroke="rgb(var(--color-ink))"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+            <text
+              y="42"
+              textAnchor="middle"
+              fill="rgb(var(--color-ink))"
+              stroke="rgb(var(--color-canvas))"
+              strokeWidth="4"
+              paintOrder="stroke"
+              fontSize="13"
+              fontWeight="700"
+            >
+              {visual.mark}
+            </text>
+          </>
+        ) : (
+          <>
+            <rect
+              x="-62"
+              y="-50"
+              width="124"
+              height="128"
+              rx="10"
+              fill="rgb(var(--color-canvas))"
+              fillOpacity=".75"
+              stroke={stroke}
+              strokeWidth="1.5"
+              strokeDasharray="6 5"
+            />
+            <text
+              y="-14"
+              textAnchor="middle"
+              fill="rgb(var(--color-subtle))"
+              fontSize="20"
+              fontWeight="700"
+              letterSpacing="1"
+            >
+              {visual.mark}
+            </text>
+            <text
+              y="14"
+              textAnchor="middle"
+              fill="rgb(var(--color-ink-soft))"
+              fontSize="13"
+              fontWeight="600"
+            >
+              {name}
+            </text>
+            <rect
+              x="-48"
+              y="32"
+              width="96"
+              height="34"
+              rx="17"
+              fill="rgb(var(--color-action))"
+            />
+            <text
+              y="54"
+              textAnchor="middle"
+              fill="rgb(var(--color-canvas))"
+              fontSize="13"
+              fontWeight="700"
+            >
+              + Place
+            </text>
+          </>
+        )}
       </g>
     </g>
   );
 }
+
+const ZOOM_LEVELS = [1, 1.5, 2, 3];
+const zoomStep = (value: number, direction: 1 | -1) => {
+  const index = ZOOM_LEVELS.indexOf(value);
+  return ZOOM_LEVELS[
+    Math.max(0, Math.min(ZOOM_LEVELS.length - 1, index + direction))
+  ];
+};
 
 export default function SystemDesignCanvas({
   graph,
@@ -354,6 +410,24 @@ export default function SystemDesignCanvas({
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ id: string; pointerId: number }>();
   const reducedMotion = useHydratedReducedMotion();
+  const [zoom, setZoom] = useState(1);
+  const [renderScale, setRenderScale] = useState(1);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0)
+        setRenderScale(Math.min(rect.width / 1000, rect.height / 560));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+  // Canvas text grows as the canvas shrinks so labels stay >= 12px.
+  const labelScale = systemLabelScale(renderScale);
+  const compact = labelScale > 1.3;
   const rawId = useId().replaceAll(':', '');
   const gridId = `system-grid-${rawId}`;
   const failurePatternId = `system-failure-${rawId}`;
@@ -421,19 +495,57 @@ export default function SystemDesignCanvas({
             Shape identifies responsibility; path pattern identifies flow.
           </p>
         </div>
-        <p
-          className="font-mono text-[10px] uppercase tracking-[.16em] text-ink"
-          aria-live="polite"
-        >
-          {phaseVisual
-            ? `${phaseVisual.symbol} ${phaseVisual.label}`
-            : '○ inspect topology'}
-        </p>
+        <div className="flex items-center gap-3">
+          <p
+            className="font-mono text-xs uppercase tracking-[.16em] text-ink sm:text-[10px]"
+            aria-live="polite"
+          >
+            {phaseVisual
+              ? `${phaseVisual.symbol} ${phaseVisual.label}`
+              : '○ inspect topology'}
+          </p>
+          <div
+            role="group"
+            aria-label="Canvas zoom"
+            className="flex items-center border border-line"
+          >
+            <button
+              type="button"
+              aria-label="Zoom out"
+              disabled={zoom <= 1}
+              onClick={() => setZoom((value) => zoomStep(value, -1))}
+              className="min-h-11 min-w-11 text-sm disabled:opacity-30"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              aria-label="Fit canvas to width"
+              onClick={() => setZoom(1)}
+              className="min-h-11 min-w-11 border-x border-line px-2 font-mono text-xs"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+              onClick={() => setZoom((value) => zoomStep(value, 1))}
+              className="min-h-11 min-w-11 text-sm disabled:opacity-30"
+            >
+              +
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="overflow-x-auto overscroll-x-contain">
-        <div className="relative min-w-[820px]">
-          <div className="grid grid-cols-4 divide-x divide-line border-b border-line px-3 py-2">
+      <div
+        data-canvas-viewport
+        className="overflow-auto overscroll-contain"
+        style={zoom > 1 ? { maxHeight: 'calc(100svh - 17rem)' } : undefined}
+      >
+        <div className="relative" style={{ width: `${zoom * 100}%` }}>
+          <div className="hidden grid-cols-4 divide-x divide-line border-b border-line px-3 py-2 sm:grid">
             {SYSTEM_CANVAS_LANES.map((lane, index) => (
               <div key={lane.id} className="px-3">
                 <p className="font-mono text-[8px] uppercase tracking-[.18em] text-subtle">
@@ -447,7 +559,7 @@ export default function SystemDesignCanvas({
           <svg
             ref={svgRef}
             viewBox="0 0 1000 560"
-            className="block max-h-[calc(100svh-17rem)] min-h-[300px] w-full min-w-[820px] touch-pan-x"
+            className={`block w-full touch-pan-x touch-pan-y ${zoom > 1 ? '' : 'max-h-[calc(100svh-17rem)]'}`}
             aria-label="Editable semantic system architecture canvas"
             onPointerMove={move}
             onPointerUp={(event) => stopDragging(event.pointerId)}
@@ -525,18 +637,19 @@ export default function SystemDesignCanvas({
                 opacity=".35"
               />
             ))}
-            {SYSTEM_CANVAS_LANES.map((lane, index) => (
-              <text
-                key={lane.id}
-                x="18"
-                y={22 + index * 140}
-                fill="rgb(var(--color-faint))"
-                fontSize="8"
-                letterSpacing="1.4"
-              >
-                {lane.label.toUpperCase()}
-              </text>
-            ))}
+            {!compact &&
+              SYSTEM_CANVAS_LANES.map((lane, index) => (
+                <text
+                  key={lane.id}
+                  x="18"
+                  y={22 + index * 140}
+                  fill="rgb(var(--color-faint))"
+                  fontSize="8"
+                  letterSpacing="1.4"
+                >
+                  {lane.label.toUpperCase()}
+                </text>
+              ))}
 
             {graph.edges.map((edge) => {
               const from = nodes.get(edge.from);
@@ -604,7 +717,7 @@ export default function SystemDesignCanvas({
                       transition={{ duration: 1.1, repeat: Infinity }}
                     />
                   )}
-                  {displayedLabel && (
+                  {displayedLabel && (!compact || active) && (
                     <text
                       x={geometry.label.x}
                       y={geometry.label.y}
@@ -617,7 +730,7 @@ export default function SystemDesignCanvas({
                       stroke="rgb(var(--color-canvas))"
                       strokeWidth="5"
                       paintOrder="stroke"
-                      fontSize="9"
+                      fontSize={9 * labelScale}
                       fontWeight={active ? '700' : '500'}
                       letterSpacing=".8"
                     >
@@ -635,6 +748,7 @@ export default function SystemDesignCanvas({
                   ghost={ghost}
                   graph={graph}
                   onPlace={() => onPlaceGhost(ghost)}
+                  scale={labelScale}
                 />
               ))}
 
@@ -651,6 +765,7 @@ export default function SystemDesignCanvas({
                   connecting={node.id === connectingFrom}
                   phase={active || emphasized ? activePhase : undefined}
                   reducedMotion={reducedMotion}
+                  labelScale={labelScale}
                   failurePatternId={failurePatternId}
                   onSelect={() => onSelect(node.id)}
                   onPointerDown={(event) => {
@@ -674,6 +789,7 @@ export default function SystemDesignCanvas({
                 durationMs={trace.durationMs}
                 shape={tokenShape}
                 reducedMotion={reducedMotion}
+                scale={labelScale}
               />
             )}
           </svg>

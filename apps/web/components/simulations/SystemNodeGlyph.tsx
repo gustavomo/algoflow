@@ -5,6 +5,7 @@ import type { SystemNode, VisualStagePhase } from '@algoflow/contracts';
 import {
   SYSTEM_PHASE_VISUALS,
   resolveSystemNodeVisual,
+  systemLabelLimit,
   truncateSystemLabel,
 } from '../../lib/simulations/visualGrammar';
 
@@ -386,6 +387,7 @@ export default function SystemNodeGlyph({
   connecting,
   phase,
   reducedMotion,
+  labelScale = 1,
   failurePatternId,
   onPointerDown,
   onSelect,
@@ -397,6 +399,8 @@ export default function SystemNodeGlyph({
   connecting: boolean;
   phase?: VisualStagePhase;
   reducedMotion: boolean;
+  /** Text enlargement so labels stay legible on a small canvas. */
+  labelScale?: number;
   failurePatternId: string;
   onPointerDown: (event: React.PointerEvent<SVGGElement>) => void;
   onSelect: () => void;
@@ -412,6 +416,7 @@ export default function SystemNodeGlyph({
   const fill = 'rgb(var(--color-surface))';
   const strokeWidth = active ? 2.8 : selected || emphasized ? 2.2 : 1.6;
   const phaseVisual = phase ? SYSTEM_PHASE_VISUALS[phase] : undefined;
+  const compact = labelScale > 1.3;
   const stateLabel =
     phaseVisual?.label ?? (connecting ? 'connection source' : 'idle');
 
@@ -496,26 +501,31 @@ export default function SystemNodeGlyph({
 
         <text
           x="0"
-          y="52"
+          y={44 + 8 * labelScale}
           textAnchor="middle"
           fill="rgb(var(--color-ink))"
-          fontSize="13"
+          stroke="rgb(var(--color-canvas))"
+          strokeWidth={compact ? 4 * labelScale : 0}
+          paintOrder="stroke"
+          fontSize={13 * labelScale}
           fontWeight="650"
         >
-          {truncateSystemLabel(node.label)}
+          {truncateSystemLabel(node.label, systemLabelLimit(labelScale))}
         </text>
-        <text
-          x="0"
-          y="68"
-          textAnchor="middle"
-          fill={soft}
-          fontSize="8"
-          letterSpacing="1.1"
-        >
-          {`${visual.mark} · ${visual.family}`.toUpperCase()}
-        </text>
+        {!compact && (
+          <text
+            x="0"
+            y="68"
+            textAnchor="middle"
+            fill={soft}
+            fontSize="8"
+            letterSpacing="1.1"
+          >
+            {`${visual.mark} · ${visual.family}`.toUpperCase()}
+          </text>
+        )}
 
-        {phaseVisual && active && (
+        {phaseVisual && active && !compact && (
           <g transform="translate(0 -48)">
             <text
               x="0"

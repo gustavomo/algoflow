@@ -92,6 +92,8 @@ function TraceCaption({
   );
 }
 
+type StudioPanelTab = 'challenge' | 'inspect' | 'evaluate' | 'brief' | 'assist';
+
 export default function SystemDesignStudio({
   scenario,
   challenge,
@@ -131,6 +133,12 @@ export default function SystemDesignStudio({
     useMachine(playbackMachine);
   const reducedMotion = useReducedMotion() ?? false;
   const canvasRef = useRef<HTMLDivElement>(null);
+  // Below xl the secondary panels collapse into tabs so the page stays short.
+  const [panelTab, setPanelTab] = useState<StudioPanelTab>(
+    challenge ? 'challenge' : 'inspect',
+  );
+  const tabClass = (tab: StudioPanelTab) =>
+    tab === panelTab ? '' : 'max-xl:hidden';
   const currentPhase = scenario.phases?.find((phase) => phase.id === phaseId);
   const availableFlows = useMemo(() => {
     if (!currentPhase) return scenario.flows;
@@ -331,6 +339,7 @@ export default function SystemDesignStudio({
     if (next.graph !== graph) setGraph(next.graph);
     setConnectingFrom(next.connectingFrom);
     setSelectedId(next.selectedId);
+    setPanelTab('inspect');
     if (next.message) setMessage(next.message);
   }
 
@@ -642,26 +651,77 @@ export default function SystemDesignStudio({
           />
         </div>
 
-        {challenge && (
-          <DesignChallengePanel
-            definition={challenge}
-            graph={graph}
-            phaseId={currentPhase?.id}
-            onResult={updateChallengeResult}
-            onActiveStep={updateChallengeStep}
-            playback={challengePlayback}
-            sendPlayback={sendChallengePlayback}
-            onShowTrace={() =>
-              canvasRef.current?.scrollIntoView({
-                behavior: reducedMotion ? 'auto' : 'smooth',
-                block: 'start',
-              })
-            }
-          />
+        {message && (
+          <p
+            role="status"
+            className="rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted"
+          >
+            {message}
+          </p>
         )}
 
+        <div
+          role="group"
+          aria-label="Lab panels"
+          className="-mx-1 flex gap-1 overflow-x-auto px-1 xl:hidden"
+        >
+          {(
+            [
+              ['challenge', 'Challenge'],
+              ['inspect', 'Inspect'],
+              ['evaluate', 'Evaluate'],
+              ['brief', 'Brief'],
+              ['assist', 'Assist'],
+            ] as const
+          )
+            .filter(([tab]) => tab !== 'challenge' || challenge)
+            .map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                aria-pressed={panelTab === tab}
+                onClick={() => setPanelTab(tab)}
+                className={`min-h-11 shrink-0 rounded-full border px-4 text-sm transition ${
+                  panelTab === tab
+                    ? 'border-ink bg-ink text-canvas'
+                    : 'border-line text-subtle hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+        </div>
+
+        {challenge && (
+          <div className={tabClass('challenge')}>
+            <DesignChallengePanel
+              definition={challenge}
+              graph={graph}
+              phaseId={currentPhase?.id}
+              onResult={updateChallengeResult}
+              onActiveStep={updateChallengeStep}
+              playback={challengePlayback}
+              sendPlayback={sendChallengePlayback}
+              onShowTrace={() =>
+                canvasRef.current?.scrollIntoView({
+                  behavior: reducedMotion ? 'auto' : 'smooth',
+                  block: 'start',
+                })
+              }
+            />
+          </div>
+        )}
+
+        {!selected && (
+          <p
+            className={`panel p-5 text-sm text-muted xl:hidden ${tabClass('inspect')}`}
+          >
+            Tap a block on the canvas to edit its label, settings and
+            connections.
+          </p>
+        )}
         {selected && (
-          <section className="panel p-5">
+          <section className={`panel p-5 ${tabClass('inspect')}`}>
             <div className="flex flex-wrap items-end gap-3">
               <label className="min-w-48 flex-1 text-xs text-subtle">
                 Selected label
@@ -714,7 +774,7 @@ export default function SystemDesignStudio({
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => setConnectingFrom(selected.id)}
-                className="button-secondary px-3 py-2 text-xs"
+                className="button-secondary min-h-11 px-3 py-2 text-xs"
               >
                 Connect from this block
               </button>
@@ -727,14 +787,14 @@ export default function SystemDesignStudio({
                 <button
                   key={String(label)}
                   onClick={() => nudge(Number(dx), Number(dy))}
-                  className="button-secondary h-9 w-9 text-sm"
+                  className="button-secondary h-11 w-11 text-sm"
                 >
                   {label}
                 </button>
               ))}
               <button
                 onClick={removeSelected}
-                className="rounded-xl border border-danger/40 px-3 py-2 text-xs text-danger"
+                className="min-h-11 rounded-xl border border-danger/40 px-3 py-2 text-xs text-danger"
               >
                 Remove block
               </button>
@@ -774,7 +834,7 @@ export default function SystemDesignStudio({
           </section>
         )}
 
-        <section className="panel p-6">
+        <section className={`panel p-6 ${tabClass('evaluate')}`}>
           <p className="eyebrow">Deterministic evaluation</p>
           <textarea
             value={tradeOffs}
@@ -832,7 +892,7 @@ export default function SystemDesignStudio({
       </div>
 
       <aside className="space-y-5 xl:sticky xl:top-28 xl:self-start">
-        <section className="panel p-5">
+        <section className={`panel p-5 ${tabClass('brief')}`}>
           <p className="eyebrow">Requirements</p>
           <ul className="mt-4 space-y-3 text-sm text-ink-soft">
             {scenario.requirements.map((item) => (
@@ -846,7 +906,9 @@ export default function SystemDesignStudio({
             ))}
           </ul>
         </section>
-        <section className="rounded-2xl border border-line-strong bg-surface-raised p-5">
+        <section
+          className={`rounded-2xl border border-line-strong bg-surface-raised p-5 ${tabClass('assist')}`}
+        >
           <p className="eyebrow">AI design partner</p>
           <p className="mt-3 text-sm leading-6 text-muted">
             Requests one constrained patch. It cannot apply or save changes.
@@ -908,16 +970,10 @@ export default function SystemDesignStudio({
             </div>
           )}
         </section>
-        <TutorPanel context={tutorContext} onOverlay={updateTutorOverlay} />
-        {message && (
-          <p
-            role="status"
-            className="rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted"
-          >
-            {message}
-          </p>
-        )}
-        <details className="panel p-5">
+        <div className={tabClass('assist')}>
+          <TutorPanel context={tutorContext} onOverlay={updateTutorOverlay} />
+        </div>
+        <details className={`panel p-5 ${tabClass('brief')}`}>
           <summary className="cursor-pointer text-sm font-medium">
             Text topology summary
           </summary>
