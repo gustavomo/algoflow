@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { useHydratedReducedMotion } from '../../lib/animation/useHydratedReducedMotion';
 import type { SystemDesignGraph, VisualStagePhase } from '@algoflow/contracts';
@@ -13,91 +13,144 @@ import {
   parallelEdgePosition,
   type ActiveSystemFlow,
   type SystemEdgeVisualSpec,
-  type SystemPoint,
 } from '../../lib/simulations/visualGrammar';
+import {
+  TRACE_TONE_VAR,
+  tokenTravel,
+  type TraceFrame,
+} from '../../lib/simulations/flowTrace';
+import { tone } from '../../lib/animation/runtimeSceneTone';
 import SystemNodeGlyph from './SystemNodeGlyph';
 
-function FlowToken({
-  point,
-  visual,
-  stroke,
+/**
+ * The one request token: it keeps its identity across steps and travels from
+ * the previous node along the drawn edge to the current one, carrying the
+ * step's tone and the latency accumulated so far. With reduced motion, when
+ * stepping backwards or when the topology moves under it, it jumps instead.
+ */
+function RequestToken({
+  frame,
+  graph,
+  stepIndex,
+  durationMs,
+  shape,
+  reducedMotion,
 }: {
-  point: SystemPoint;
-  visual: SystemEdgeVisualSpec;
-  stroke: string;
+  frame: TraceFrame;
+  graph: SystemDesignGraph;
+  stepIndex: number;
+  durationMs: number;
+  shape: SystemEdgeVisualSpec['token'];
+  reducedMotion: boolean;
 }) {
+  const travel = useRef<{ step: number; at: number; moving: boolean }>();
+  const now = Date.now();
+  if (travel.current?.step !== stepIndex) {
+    travel.current = {
+      step: stepIndex,
+      at: now,
+      moving:
+        !reducedMotion &&
+        travel.current !== undefined &&
+        stepIndex === travel.current.step + 1,
+    };
+  }
+  const points = tokenTravel(frame, graph);
+  const rest = points.at(-1);
+  if (!rest) return null;
+  const moving =
+    travel.current.moving &&
+    points.length > 1 &&
+    now - travel.current.at < durationMs;
+  const color = tone(TRACE_TONE_VAR[frame.tone]);
   return (
-    <g transform={`translate(${point.x} ${point.y})`} aria-hidden="true">
-      {visual.token === 'circle' && <circle r="6" fill={stroke} />}
-      {visual.token === 'square' && (
-        <rect x="-5" y="-5" width="10" height="10" fill={stroke} />
+    <motion.g
+      data-request-token={frame.tone}
+      aria-hidden="true"
+      pointerEvents="none"
+      initial={false}
+      animate={
+        moving
+          ? {
+              x: points.map((point) => point.x),
+              y: points.map((point) => point.y),
+            }
+          : { x: rest.x, y: rest.y }
+      }
+      transition={
+        moving
+          ? { duration: durationMs / 1000, ease: 'easeInOut' }
+          : { duration: 0 }
+      }
+    >
+      <circle
+        r="12"
+        fill="rgb(var(--color-canvas))"
+        stroke={color}
+        strokeWidth="2.5"
+      />
+      {shape === 'square' && (
+        <rect x="-5" y="-5" width="10" height="10" fill={color} />
       )}
-      {visual.token === 'diamond' && (
-        <path d="M0-7 7 0 0 7-7 0Z" fill={stroke} />
-      )}
-      {visual.token === 'double' && (
-        <g fill={stroke}>
-          <circle cx="-5" r="4" />
-          <circle cx="5" r="4" />
+      {shape === 'diamond' && <path d="M0-7 7 0 0 7-7 0Z" fill={color} />}
+      {shape === 'double' && (
+        <g fill={color}>
+          <circle cx="-4" r="3.5" />
+          <circle cx="4" r="3.5" />
         </g>
       )}
-      {visual.token === 'cross' && (
-        <g stroke={stroke} strokeWidth="3" strokeLinecap="round">
-          <path d="M-7-7 7 7M7-7-7 7" />
-        </g>
+      {shape === 'cross' && (
+        <path
+          d="M-5-5 5 5M5-5-5 5"
+          stroke={color}
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
       )}
-    </g>
+      {shape === 'circle' && <circle r="5.5" fill={color} />}
+      <text
+        y="-19"
+        textAnchor="middle"
+        fill={color}
+        stroke="rgb(var(--color-canvas))"
+        strokeWidth="4"
+        paintOrder="stroke"
+        fontSize="11"
+        fontWeight="700"
+      >
+        {`${frame.totalMs}ms`}
+      </text>
+    </motion.g>
   );
 }
 
-function MovingFlowToken({
-  start,
-  middle,
-  end,
-  visual,
-}: {
-  start: SystemPoint;
-  middle: SystemPoint;
-  end: SystemPoint;
-  visual: SystemEdgeVisualSpec;
-}) {
+/**
+ * Marks the final step: a success outline over the canvas plus one light
+ * sweep across it. With reduced motion only the static outline is drawn.
+ */
+function CompletionSweep({ reducedMotion }: { reducedMotion: boolean }) {
   return (
-    <motion.g
-      aria-hidden="true"
-      initial={{ x: start.x, y: start.y }}
-      animate={{
-        x: [start.x, middle.x, end.x],
-        y: [start.y, middle.y, end.y],
+    <div
+      aria-hidden
+      data-completion={reducedMotion ? 'static' : 'sweep'}
+      className="pointer-events-none absolute inset-0 overflow-hidden border-2"
+      style={{
+        borderColor: tone('--color-success', 0.55),
+        boxShadow: `inset 0 0 0 3px ${tone('--color-success', 0.1)}`,
       }}
-      transition={{ duration: 1.35, repeat: Infinity, ease: 'linear' }}
     >
-      {visual.token === 'circle' && (
-        <circle r="6" fill="rgb(var(--color-ink))" />
-      )}
-      {visual.token === 'square' && (
-        <rect
-          x="-5"
-          y="-5"
-          width="10"
-          height="10"
-          fill="rgb(var(--color-ink))"
+      {!reducedMotion && (
+        <motion.div
+          className="absolute inset-y-0 w-1/3"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${tone('--color-success', 0.18)}, transparent)`,
+          }}
+          initial={{ left: '-35%' }}
+          animate={{ left: '105%' }}
+          transition={{ duration: 0.9, ease: 'easeInOut' }}
         />
       )}
-      {visual.token === 'diamond' && (
-        <path d="M0-7 7 0 0 7-7 0Z" fill="rgb(var(--color-ink))" />
-      )}
-      {visual.token === 'double' && (
-        <g fill="rgb(var(--color-ink))">
-          <circle cx="-5" r="4" />
-          <circle cx="5" r="4" />
-        </g>
-      )}
-      {visual.token === 'cross' && (
-        <g stroke="rgb(var(--color-ink))" strokeWidth="3" strokeLinecap="round">
-          <path d="M-7-7 7 7M7-7-7 7" />
-        </g>
-      )}
-    </motion.g>
+    </div>
   );
 }
 
@@ -113,6 +166,9 @@ export default function SystemDesignCanvas({
   activeFlow,
   emphasizedNodeIds = [],
   emphasizedEdgeIds = [],
+  trace,
+  complete = false,
+  footer,
 }: {
   graph: SystemDesignGraph;
   onChange: (graph: SystemDesignGraph) => void;
@@ -125,6 +181,12 @@ export default function SystemDesignCanvas({
   activeFlow?: ActiveSystemFlow;
   emphasizedNodeIds?: string[];
   emphasizedEdgeIds?: string[];
+  /** The request token for the current step, when a flow or trace is set. */
+  trace?: { frame: TraceFrame; stepIndex: number; durationMs: number };
+  /** The flow reached its last step: draw the completion sweep. */
+  complete?: boolean;
+  /** Controls docked to the canvas bottom (narration, caption, playback). */
+  footer?: ReactNode;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ id: string; pointerId: number }>();
@@ -140,6 +202,23 @@ export default function SystemDesignCanvas({
   const phaseVisual = activePhase
     ? SYSTEM_PHASE_VISUALS[activePhase]
     : undefined;
+  const tokenEdge = trace?.frame.edgeId
+    ? graph.edges.find((edge) => edge.id === trace.frame.edgeId)
+    : undefined;
+  const tokenEdgeFrom = tokenEdge ? nodes.get(tokenEdge.from) : undefined;
+  const tokenEdgeTo = tokenEdge ? nodes.get(tokenEdge.to) : undefined;
+  const tokenShape =
+    tokenEdge && tokenEdgeFrom && tokenEdgeTo
+      ? SYSTEM_EDGE_VISUALS[
+          classifySystemEdge(
+            tokenEdge,
+            tokenEdgeFrom,
+            tokenEdgeTo,
+            activeFlow,
+            activePhase,
+          )
+        ].token
+      : 'circle';
 
   function stopDragging(pointerId: number) {
     if (dragging.current?.pointerId !== pointerId) return;
@@ -152,15 +231,14 @@ export default function SystemDesignCanvas({
     const current = dragging.current;
     if (!current || event.pointerId !== current.pointerId || !svgRef.current)
       return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = Math.max(
-      76,
-      Math.min(924, ((event.clientX - rect.left) / rect.width) * 1000),
+    // Map through the screen matrix so letterboxing and zoom stay exact.
+    const matrix = svgRef.current.getScreenCTM();
+    if (!matrix) return;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+      matrix.inverse(),
     );
-    const y = Math.max(
-      76,
-      Math.min(484, ((event.clientY - rect.top) / rect.height) * 560),
-    );
+    const x = Math.max(76, Math.min(924, point.x));
+    const y = Math.max(76, Math.min(484, point.y));
     onChange({
       ...graph,
       nodes: graph.nodes.map((node) =>
@@ -191,7 +269,7 @@ export default function SystemDesignCanvas({
       </div>
 
       <div className="overflow-x-auto overscroll-x-contain">
-        <div className="min-w-[820px]">
+        <div className="relative min-w-[820px]">
           <div className="grid grid-cols-4 divide-x divide-line border-b border-line px-3 py-2">
             {SYSTEM_CANVAS_LANES.map((lane, index) => (
               <div key={lane.id} className="px-3">
@@ -206,7 +284,7 @@ export default function SystemDesignCanvas({
           <svg
             ref={svgRef}
             viewBox="0 0 1000 560"
-            className="block w-full min-w-[820px] touch-pan-x"
+            className="block max-h-[calc(100svh-17rem)] min-h-[300px] w-full min-w-[820px] touch-pan-x"
             aria-label="Editable semantic system architecture canvas"
             onPointerMove={move}
             onPointerUp={(event) => stopDragging(event.pointerId)}
@@ -322,18 +400,6 @@ export default function SystemDesignCanvas({
                 active || emphasized
                   ? 'rgb(var(--color-ink))'
                   : 'rgb(var(--color-line-strong))';
-              const staticTokenPoint =
-                activePhase === 'initial'
-                  ? geometry.start
-                  : activePhase === 'terminal'
-                    ? geometry.end
-                    : geometry.middle;
-              const animateToken =
-                active &&
-                !reducedMotion &&
-                activePhase !== 'failure' &&
-                activePhase !== 'terminal' &&
-                activePhase !== 'initial';
               const visibleLabel =
                 edge.label || (active ? visual.label : undefined);
               const displayedLabel = visibleLabel
@@ -395,22 +461,6 @@ export default function SystemDesignCanvas({
                       {displayedLabel.toUpperCase()}
                     </text>
                   )}
-                  {animateToken ? (
-                    <MovingFlowToken
-                      start={geometry.start}
-                      middle={geometry.middle}
-                      end={geometry.end}
-                      visual={visual}
-                    />
-                  ) : (
-                    active && (
-                      <FlowToken
-                        point={staticTokenPoint}
-                        visual={visual}
-                        stroke="rgb(var(--color-ink))"
-                      />
-                    )
-                  )}
                 </g>
               );
             })}
@@ -442,9 +492,22 @@ export default function SystemDesignCanvas({
                 />
               );
             })}
+
+            {trace && (
+              <RequestToken
+                frame={trace.frame}
+                graph={graph}
+                stepIndex={trace.stepIndex}
+                durationMs={trace.durationMs}
+                shape={tokenShape}
+                reducedMotion={reducedMotion}
+              />
+            )}
           </svg>
+          {complete && <CompletionSweep reducedMotion={reducedMotion} />}
         </div>
       </div>
+      {footer}
     </section>
   );
 }
