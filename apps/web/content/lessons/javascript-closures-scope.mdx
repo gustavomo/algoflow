@@ -1,0 +1,69 @@
+Scope is decided by where code is written, not by where it runs. Closures are what that rule looks like once a function outlives the call that created it.
+
+<Hint>
+  A closure captures bindings, not values. Ask which binding a function refers
+  to, then ask how many times that binding was created.
+</Hint>
+
+## Lexical scope
+
+Every function, block, and module creates a scope. When JavaScript resolves a name, it searches the current scope and then each enclosing scope outward until it reaches the global scope. The search path is fixed by the source text.
+
+```js
+const label = 'module';
+
+function outer() {
+  const label = 'outer';
+  return function inner() {
+    return label;
+  };
+}
+
+console.log(outer()()); // 'outer': inner was written inside outer
+```
+
+## Closures keep bindings alive
+
+When `outer` returns, its local variables would normally become unreachable. Because `inner` still references `label`, the engine keeps that binding alive for as long as `inner` exists.
+
+## Private state
+
+A closure is the simplest way to hide state behind an interface. Callers can use the returned functions, but nothing outside can reach `count` directly.
+
+```js
+function createCounter(start = 0) {
+  let count = start;
+  return {
+    increment: () => ++count,
+    current: () => count,
+  };
+}
+
+const a = createCounter();
+const b = createCounter(10);
+a.increment();
+a.increment();
+console.log(a.current(), b.current()); // 2 10
+```
+
+Each call to `createCounter` creates a new `count` binding, so `a` and `b` never share state.
+
+## The loop pitfall
+
+`var` is function-scoped, so a loop that uses it creates one binding for the whole loop. Every callback closes over that same binding and reads it after the loop has finished.
+
+```js
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log('var', i), 0); // var 3, three times
+}
+
+for (let j = 0; j < 3; j++) {
+  setTimeout(() => console.log('let', j), 0); // let 0, let 1, let 2
+}
+```
+
+`let` creates a fresh binding for each iteration, so each callback captures its own value. Prefer `let` and `const`; reach for an explicit factory function only when you need a closure over something that is not a loop variable.
+
+## Predict before running
+
+For any closure, name the binding it reads, count how many times that binding is created, and decide when the read happens. Those three answers predict the output.

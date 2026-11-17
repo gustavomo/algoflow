@@ -9,6 +9,19 @@ JavaScript feels predictable once you separate synchronous execution from schedu
 
 Functions enter the call stack and complete in order. Browser or server APIs perform external work. Ready callbacks enter a queue. The event loop schedules queued work only when the stack can accept it.
 
+## Trace one script
+
+The scene beside this lesson steps through these four lines. Predict the output before you press play.
+
+```js
+console.log('Start');
+setTimeout(() => console.log('Timeout'), 0);
+Promise.resolve().then(() => console.log('Promise'));
+console.log('End');
+```
+
+The output is `Start`, `End`, `Promise`, `Timeout`: synchronous code first, then every microtask, then one task at a time.
+
 ## Predict before running
 
 For every asynchronous example, write the synchronous output first, identify which queue receives each callback, and only then simulate the event loop. Prediction is stronger evidence than memorizing a slogan.

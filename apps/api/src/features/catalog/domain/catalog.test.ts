@@ -7,24 +7,25 @@ import {
   tracks,
   validateCatalog,
   validateLearningPathResources,
+  validateRuntimeScene,
 } from './catalog';
 
 describe('catalog', () => {
   it('contains the approved seed curriculum with valid references', () => {
     expect(tracks).toHaveLength(10);
-    expect(topics).toHaveLength(13);
-    expect(lessons).toHaveLength(17);
-    expect(learningPaths).toHaveLength(27);
-    expect(assessments).toHaveLength(57);
+    expect(topics).toHaveLength(16);
+    expect(lessons).toHaveLength(24);
+    expect(learningPaths).toHaveLength(28);
+    expect(assessments).toHaveLength(68);
     expect(
       assessments.filter((assessment) => assessment.scope?.kind === 'lesson'),
-    ).toHaveLength(17);
+    ).toHaveLength(24);
     expect(
       assessments.filter((assessment) => assessment.scope?.kind === 'topic'),
-    ).toHaveLength(13);
+    ).toHaveLength(16);
     expect(
       assessments.filter((assessment) => assessment.scope?.kind === 'path'),
-    ).toHaveLength(27);
+    ).toHaveLength(28);
     expect(validateCatalog()).toEqual([]);
   });
 
@@ -46,10 +47,10 @@ describe('catalog', () => {
     const conceptLessons = lessons.filter(
       (lesson) => lesson.visualization === 'concept-flow',
     );
-    expect(conceptLessons).toHaveLength(11);
+    expect(conceptLessons).toHaveLength(10);
     expect(
       new Set(conceptLessons.map((lesson) => lesson.conceptFlow?.scene)).size,
-    ).toBe(11);
+    ).toBe(10);
     for (const lesson of conceptLessons) {
       const steps = lesson.conceptFlow!.steps;
       expect(steps[0].phase).toBe('initial');
@@ -58,6 +59,145 @@ describe('catalog', () => {
       expect(steps.at(-1)?.phase).toBe('terminal');
       expect(lesson.conceptFlow?.terminalSummary).toBeTruthy();
     }
+  });
+
+  it('drives the JavaScript execution model with a valid runtime scene', () => {
+    const lesson = lessons.find(
+      (item) => item.slug === 'javascript-execution-model',
+    );
+    expect(lesson?.visualization).toBe('runtime-scene');
+    const scene = lesson!.runtimeScene!;
+    expect(scene.steps.length).toBeGreaterThanOrEqual(9);
+    expect(scene.steps.length).toBeLessThanOrEqual(11);
+    expect(scene.steps.at(-1)?.output).toEqual([
+      'Start',
+      'End',
+      'Promise',
+      'Timeout',
+    ]);
+    expect(validateRuntimeScene(lesson!.slug, scene)).toEqual([]);
+  });
+
+  it('rejects runtime scenes with bad lines, duplicate tokens, or unknown regions', () => {
+    const scene = structuredClone(
+      lessons.find((item) => item.slug === 'javascript-execution-model')!
+        .runtimeScene!,
+    );
+    scene.steps[0].codeLines = [scene.code.lines.length];
+    scene.steps[1].tokens.push({ ...scene.steps[1].tokens[0] });
+    scene.steps[2].tokens[0].regionId = 'heap';
+    scene.steps[3].activeRegionIds = ['nowhere'];
+
+    const errors = validateRuntimeScene('demo', scene).join(' ');
+    expect(errors).toMatch(/runtime step 1 code line 4 out of range/);
+    expect(errors).toMatch(/runtime step 2 duplicate token script/);
+    expect(errors).toMatch(/runtime step 3 unknown region heap/);
+    expect(errors).toMatch(/runtime step 4 unknown region nowhere/);
+  });
+
+  it('rejects runtime tokens with unknown links or invalid progress', () => {
+    const scene = structuredClone(
+      lessons.find((item) => item.slug === 'javascript-closures-scope')!
+        .runtimeScene!,
+    );
+    scene.steps[0].tokens[0].linkRegionId = 'scope-9';
+    scene.steps[1].tokens[0].progress = 1.5;
+    scene.steps[2].tokens[0].progress = Number.NaN;
+
+    const errors = validateRuntimeScene('demo', scene).join(' ');
+    expect(errors).toMatch(/runtime step 1 unknown region scope-9/);
+    expect(errors).toMatch(/runtime step 2 token script progress out of range/);
+    expect(errors).toMatch(/runtime step 3 token script progress out of range/);
+  });
+
+  it.each([
+    ['javascript-closures-scope', ['2 10']],
+    [
+      'javascript-async-patterns',
+      [
+        'sequential: 300 ms',
+        'Promise.all: 100 ms',
+        'Promise.all rejected at 40 ms: HTTP 500',
+        'allSettled: fulfilled, rejected, fulfilled',
+        'TimeoutError at 100 ms: request cancelled',
+      ],
+    ],
+    [
+      'typescript-types-narrowing',
+      [
+        '✓ default: result is never',
+        "✗ TS2345: '{ status: \"cancelled\" }' is not assignable to 'never'",
+        "✓ case 'cancelled' added: result is never again",
+      ],
+    ],
+    [
+      'typescript-generics',
+      [
+        'const id: number',
+        'const name: string',
+        'TS2345: \'"email"\' is not assignable to parameter of type \'"id" | "name"\'',
+      ],
+    ],
+    [
+      'negative-space-assertions',
+      [
+        'withdraw(100, 30) → 70',
+        'Error: Assertion failed: withdrawal never exceeds balance',
+        'withdraw(70, 130) → -60 (no assertions, no error)',
+        'days later: reconciliation mismatch, cause unknown',
+        'Error: Assertion failed: balance never becomes negative',
+      ],
+    ],
+    [
+      'aspect-oriented-decorators',
+      [
+        "→ fetchRate [ 'EUR' ]",
+        '← fetchRate Promise { <pending> }',
+        '1.08',
+        "→ fetchRate [ 'EUR' ]",
+        '← fetchRate Promise { 1.08 }',
+        '1.08',
+      ],
+    ],
+    [
+      'nestjs-request-pipeline',
+      [
+        'create took 3ms',
+        '201 { id, sku: "A-1", quantity: 2 }',
+        '400 { statusCode: 400, path: "/orders", error }',
+        '403 { statusCode: 403, path: "/orders", error }',
+      ],
+    ],
+  ])('authors a sound runtime scene for %s', (slug, finalOutput) => {
+    const lesson = lessons.find((item) => item.slug === slug)!;
+    expect(lesson.visualization).toBe('runtime-scene');
+    expect(lesson.conceptFlow).toBeUndefined();
+    const scene = lesson.runtimeScene!;
+    expect(validateRuntimeScene(slug, scene)).toEqual([]);
+    expect(scene.steps.length).toBeGreaterThanOrEqual(8);
+    expect(scene.steps.length).toBeLessThanOrEqual(12);
+    expect(scene.steps.at(-1)?.output).toEqual(finalOutput);
+    expect(
+      scene.regions.filter((region) => region.kind === 'console'),
+    ).toHaveLength(1);
+    const usedRegions = new Set(
+      scene.steps.flatMap((step) => step.tokens.map((token) => token.regionId)),
+    );
+    for (const region of scene.regions)
+      if (region.kind !== 'console')
+        expect(usedRegions.has(region.id), region.id).toBe(true);
+    scene.steps.forEach((step, index) => {
+      expect(step.label).toBeTruthy();
+      expect(step.narration.length).toBeGreaterThan(60);
+      // The highlight band spans min..max, so lines must be contiguous.
+      const sorted = [...step.codeLines].sort((a, b) => a - b);
+      expect(sorted.at(-1)! - sorted[0] + 1 || 0).toBe(sorted.length);
+      // Output only ever grows: the console never rewrites history.
+      if (index > 0)
+        expect(
+          step.output.slice(0, scene.steps[index - 1].output.length),
+        ).toEqual(scene.steps[index - 1].output);
+    });
   });
 
   it('rejects malformed, insecure, and duplicate resource metadata', () => {

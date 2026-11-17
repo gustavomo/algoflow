@@ -8,10 +8,20 @@ import type {
   LearningTrackDefinition,
   LessonDefinition,
   PathModuleDefinition,
+  RuntimeScene,
   TopicDefinition,
   VisualSceneKind,
 } from '@algoflow/contracts';
 import { isLearningResource } from '@algoflow/contracts';
+import {
+  asyncRuntimeScene,
+  closuresRuntimeScene,
+  decoratorsRuntimeScene,
+  genericsRuntimeScene,
+  narrowingRuntimeScene,
+  negativeSpaceRuntimeScene,
+  nestPipelineRuntimeScene,
+} from './runtimeScenes';
 import {
   buildAssessmentCatalog,
   validateMasteryCoverage,
@@ -47,13 +57,14 @@ export const tracks: LearningTrackDefinition[] = [
   {
     slug: 'languages',
     title: 'Languages',
-    description: 'Develop durable mental models for JavaScript and Go.',
+    description:
+      'Develop durable mental models for JavaScript, TypeScript, and Go.',
     outcomes: [
       'Explain runtime behavior',
       'Write idiomatic programs',
       'Compare language trade-offs',
     ],
-    pathSlugs: ['javascript', 'go'],
+    pathSlugs: ['javascript', 'backend-typescript-nestjs', 'go'],
     order: 3,
   },
   {
@@ -246,6 +257,27 @@ export const topics: TopicDefinition[] = [
       'Create leverage through judgment, strategy, alignment, and durable systems.',
     domain: 'engineering',
   },
+  {
+    slug: 'type-systems',
+    title: 'Type Systems',
+    description:
+      'Use static types to prove which values a program can hold at each line.',
+    domain: 'languages',
+  },
+  {
+    slug: 'software-correctness',
+    title: 'Software Correctness',
+    description:
+      'State what must never happen and fail fast when an invariant breaks.',
+    domain: 'engineering',
+  },
+  {
+    slug: 'backend-architecture',
+    title: 'Backend Architecture',
+    description:
+      'Separate cross-cutting concerns from business logic in server pipelines.',
+    domain: 'architecture',
+  },
 ];
 
 function conceptFlow(
@@ -324,6 +356,225 @@ function conceptFlow(
     terminalSummary,
   };
 }
+
+const eventLoopScene: RuntimeScene = {
+  code: {
+    language: 'javascript',
+    lines: [
+      "console.log('Start');",
+      "setTimeout(() => console.log('Timeout'), 0);",
+      "Promise.resolve().then(() => console.log('Promise'));",
+      "console.log('End');",
+    ],
+  },
+  regions: [
+    { id: 'call-stack', label: 'Call Stack', kind: 'stack', tone: 'yellow' },
+    { id: 'web-apis', label: 'Web APIs', kind: 'box', tone: 'teal' },
+    {
+      id: 'microtask-queue',
+      label: 'Microtask Queue',
+      kind: 'queue',
+      tone: 'orange',
+    },
+    { id: 'task-queue', label: 'Task Queue', kind: 'queue', tone: 'green' },
+    { id: 'console', label: 'Console', kind: 'console', tone: 'red' },
+  ],
+  steps: [
+    {
+      label: 'The script enters the stack',
+      narration:
+        'The engine pushes the whole script onto the call stack as one task. Until that frame pops, nothing else can run: JavaScript runs each task to completion.',
+      codeLines: [],
+      tokens: [
+        {
+          id: 'script',
+          label: 'script',
+          regionId: 'call-stack',
+          tone: 'muted',
+        },
+      ],
+      output: [],
+      activeRegionIds: ['call-stack'],
+    },
+    {
+      label: "log('Start') runs synchronously",
+      narration:
+        'console.log is pushed on top of the script, prints immediately, and pops. Synchronous calls never wait for any queue.',
+      codeLines: [0],
+      tokens: [
+        {
+          id: 'script',
+          label: 'script',
+          regionId: 'call-stack',
+          tone: 'muted',
+        },
+        { id: 'log-start', label: "log('Start')", regionId: 'call-stack' },
+      ],
+      output: ['Start'],
+      activeRegionIds: ['call-stack', 'console'],
+    },
+    {
+      label: 'setTimeout hands the timer to the browser',
+      narration:
+        'setTimeout is not part of the engine. It registers the callback with a browser timer (a Web API) and returns at once, so the stack keeps moving.',
+      codeLines: [1],
+      tokens: [
+        {
+          id: 'script',
+          label: 'script',
+          regionId: 'call-stack',
+          tone: 'muted',
+        },
+        { id: 'set-timeout', label: 'setTimeout()', regionId: 'call-stack' },
+        { id: 'timeout-cb', label: 'timer 0 ms', regionId: 'web-apis' },
+      ],
+      output: ['Start'],
+      activeRegionIds: ['call-stack', 'web-apis'],
+    },
+    {
+      label: 'The timer fires into the Task Queue',
+      narration:
+        'Even with 0 ms the callback does not run now. The expired timer only places it in the Task Queue, where it must wait for an empty stack.',
+      codeLines: [1],
+      tokens: [
+        {
+          id: 'script',
+          label: 'script',
+          regionId: 'call-stack',
+          tone: 'muted',
+        },
+        {
+          id: 'timeout-cb',
+          label: "() => log('Timeout')",
+          regionId: 'task-queue',
+        },
+      ],
+      output: ['Start'],
+      activeRegionIds: ['web-apis', 'task-queue'],
+    },
+    {
+      label: '.then queues a microtask',
+      narration:
+        'The promise is already resolved, so .then puts its callback straight into the Microtask Queue: a separate queue the event loop serves before any task.',
+      codeLines: [2],
+      tokens: [
+        {
+          id: 'script',
+          label: 'script',
+          regionId: 'call-stack',
+          tone: 'muted',
+        },
+        { id: 'then', label: '.then()', regionId: 'call-stack' },
+        {
+          id: 'timeout-cb',
+          label: "() => log('Timeout')",
+          regionId: 'task-queue',
+        },
+        {
+          id: 'promise-cb',
+          label: "() => log('Promise')",
+          regionId: 'microtask-queue',
+        },
+      ],
+      output: ['Start'],
+      activeRegionIds: ['call-stack', 'microtask-queue'],
+    },
+    {
+      label: "log('End') runs synchronously",
+      narration:
+        "Both callbacks are waiting, yet the script still owns the stack. log('End') prints before either of them.",
+      codeLines: [3],
+      tokens: [
+        {
+          id: 'script',
+          label: 'script',
+          regionId: 'call-stack',
+          tone: 'muted',
+        },
+        { id: 'log-end', label: "log('End')", regionId: 'call-stack' },
+        {
+          id: 'timeout-cb',
+          label: "() => log('Timeout')",
+          regionId: 'task-queue',
+        },
+        {
+          id: 'promise-cb',
+          label: "() => log('Promise')",
+          regionId: 'microtask-queue',
+        },
+      ],
+      output: ['Start', 'End'],
+      activeRegionIds: ['call-stack', 'console'],
+    },
+    {
+      label: 'The script pops; the event loop checks',
+      narration:
+        'The script finished, so the stack is empty. Only now does the event loop act, and it always drains the Microtask Queue before taking the next task.',
+      codeLines: [],
+      tokens: [
+        {
+          id: 'timeout-cb',
+          label: "() => log('Timeout')",
+          regionId: 'task-queue',
+        },
+        {
+          id: 'promise-cb',
+          label: "() => log('Promise')",
+          regionId: 'microtask-queue',
+        },
+      ],
+      output: ['Start', 'End'],
+      activeRegionIds: ['call-stack', 'microtask-queue'],
+      eventLoop: 'checking',
+    },
+    {
+      label: 'The microtask runs first',
+      narration:
+        'The promise callback moves onto the stack and prints. The timer callback was queued earlier, but microtasks have priority over tasks.',
+      codeLines: [2],
+      tokens: [
+        {
+          id: 'promise-cb',
+          label: "() => log('Promise')",
+          regionId: 'call-stack',
+          tone: 'ok',
+        },
+        {
+          id: 'timeout-cb',
+          label: "() => log('Timeout')",
+          regionId: 'task-queue',
+        },
+      ],
+      output: ['Start', 'End', 'Promise'],
+      activeRegionIds: ['call-stack', 'console'],
+    },
+    {
+      label: 'Microtasks drained; the task runs',
+      narration:
+        'The stack and the Microtask Queue are empty again, so the event loop takes the oldest task. The timer callback finally runs and prints.',
+      codeLines: [1],
+      tokens: [
+        {
+          id: 'timeout-cb',
+          label: "() => log('Timeout')",
+          regionId: 'call-stack',
+          tone: 'ok',
+        },
+      ],
+      output: ['Start', 'End', 'Promise', 'Timeout'],
+      activeRegionIds: ['task-queue', 'call-stack', 'console'],
+      eventLoop: 'checking',
+    },
+    {
+      label: 'Every queue is empty',
+      narration:
+        'Final order: Start, End, Promise, Timeout. Synchronous code first, then every microtask, then one task at a time. A 0 ms timer means "as soon as possible", never "now".',
+      codeLines: [],
+      tokens: [],
+      output: ['Start', 'End', 'Promise', 'Timeout'],
+    },
+  ],
+};
 
 export const lessons: LessonDefinition[] = [
   {
@@ -448,16 +699,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'language-runtime',
     conceptIds: ['call-stack', 'event-loop'],
     estimatedMinutes: 20,
-    visualization: 'concept-flow',
+    visualization: 'runtime-scene',
     codeLanguage: 'javascript',
-    conceptFlow: conceptFlow(
-      'event-loop',
-      ['Call stack', 'Web API', 'Task queue', 'Event loop'],
-      'Run-to-completion',
-      'A queued callback cannot enter a busy call stack; treating registration as immediate execution predicts the wrong order.',
-      'The event loop waits for run-to-completion, then moves the oldest eligible task onto the empty stack.',
-      'The execution model is complete when synchronous stack work finishes before queued asynchronous callbacks re-enter JavaScript.',
-    ),
+    runtimeScene: eventLoopScene,
     assessmentSlug: 'javascript-runtime-checkpoint',
     prerequisites: [],
   },
@@ -671,6 +915,118 @@ export const lessons: LessonDefinition[] = [
     ),
     assessmentSlug: 'cross-team-change-checkpoint',
     prerequisites: ['technical-strategy'],
+  },
+  {
+    slug: 'javascript-closures-scope',
+    title: 'Closures and Scope',
+    summary:
+      'Resolve names through lexical scope and use closures for private state without the loop pitfall.',
+    tech: 'js',
+    domain: 'languages',
+    topicSlug: 'language-runtime',
+    conceptIds: ['lexical-scope', 'closure-binding'],
+    estimatedMinutes: 18,
+    visualization: 'runtime-scene',
+    codeLanguage: 'javascript',
+    runtimeScene: closuresRuntimeScene,
+    assessmentSlug: 'javascript-closures-scope-checkpoint',
+    prerequisites: ['javascript-execution-model'],
+  },
+  {
+    slug: 'javascript-async-patterns',
+    title: 'Async JavaScript Patterns',
+    summary:
+      'Compose promises and async/await, choose a concurrency combinator, and cancel work with AbortController.',
+    tech: 'js',
+    domain: 'languages',
+    topicSlug: 'language-runtime',
+    conceptIds: ['promise-composition', 'async-cancellation'],
+    estimatedMinutes: 24,
+    visualization: 'runtime-scene',
+    codeLanguage: 'javascript',
+    runtimeScene: asyncRuntimeScene,
+    assessmentSlug: 'javascript-async-patterns-checkpoint',
+    prerequisites: ['javascript-closures-scope'],
+  },
+  {
+    slug: 'typescript-types-narrowing',
+    title: 'Types and Narrowing',
+    summary:
+      'Model alternatives with unions and let control flow prove which member you hold, down to an exhaustive never.',
+    tech: 'ts',
+    domain: 'languages',
+    topicSlug: 'type-systems',
+    conceptIds: ['type-narrowing', 'discriminated-union'],
+    estimatedMinutes: 20,
+    visualization: 'runtime-scene',
+    codeLanguage: 'typescript',
+    runtimeScene: narrowingRuntimeScene,
+    assessmentSlug: 'typescript-types-narrowing-checkpoint',
+    prerequisites: ['javascript-closures-scope'],
+  },
+  {
+    slug: 'typescript-generics',
+    title: 'TypeScript Generics',
+    summary:
+      'Write functions and types that preserve input-output relationships with constraints, keyof, and utility types.',
+    tech: 'ts',
+    domain: 'languages',
+    topicSlug: 'type-systems',
+    conceptIds: ['generic-constraint', 'keyof-utility-types'],
+    estimatedMinutes: 22,
+    visualization: 'runtime-scene',
+    codeLanguage: 'typescript',
+    runtimeScene: genericsRuntimeScene,
+    assessmentSlug: 'typescript-generics-checkpoint',
+    prerequisites: ['typescript-types-narrowing'],
+  },
+  {
+    slug: 'negative-space-assertions',
+    title: 'Negative-Space Assertions',
+    summary:
+      'Assert what must never happen with preconditions, postconditions, and invariants, and fail fast at boundaries.',
+    tech: 'ts',
+    domain: 'engineering',
+    topicSlug: 'software-correctness',
+    conceptIds: ['negative-space', 'fail-fast-boundary'],
+    estimatedMinutes: 22,
+    visualization: 'runtime-scene',
+    codeLanguage: 'typescript',
+    runtimeScene: negativeSpaceRuntimeScene,
+    assessmentSlug: 'negative-space-assertions-checkpoint',
+    prerequisites: ['typescript-generics'],
+  },
+  {
+    slug: 'aspect-oriented-decorators',
+    title: 'Aspect-Oriented Decorators',
+    summary:
+      'Move logging, caching, and retries into TypeScript method decorators and weigh hidden control flow.',
+    tech: 'ts',
+    domain: 'architecture',
+    topicSlug: 'backend-architecture',
+    conceptIds: ['cross-cutting-concern', 'around-advice'],
+    estimatedMinutes: 24,
+    visualization: 'runtime-scene',
+    codeLanguage: 'typescript',
+    runtimeScene: decoratorsRuntimeScene,
+    assessmentSlug: 'aspect-oriented-decorators-checkpoint',
+    prerequisites: ['negative-space-assertions'],
+  },
+  {
+    slug: 'nestjs-request-pipeline',
+    title: 'NestJS Request Pipeline',
+    summary:
+      'Trace a request through middleware, guards, interceptors, pipes, the handler, and exception filters as applied AOP.',
+    tech: 'ts',
+    domain: 'architecture',
+    topicSlug: 'backend-architecture',
+    conceptIds: ['request-lifecycle', 'validation-pipe'],
+    estimatedMinutes: 28,
+    visualization: 'runtime-scene',
+    codeLanguage: 'typescript',
+    runtimeScene: nestPipelineRuntimeScene,
+    assessmentSlug: 'nestjs-request-pipeline-checkpoint',
+    prerequisites: ['aspect-oriented-decorators', 'javascript-async-patterns'],
   },
 ];
 
@@ -1319,6 +1675,41 @@ const PATH_RESOURCES: Record<string, LearningResource[]> = {
       'https://tc39.es/ecma262/',
     ),
   ],
+  'backend-typescript-nestjs': [
+    resource(
+      'typescript-handbook-narrowing',
+      'TypeScript Handbook: Narrowing',
+      'TypeScript',
+      'https://www.typescriptlang.org/docs/handbook/2/narrowing.html',
+      'guide',
+    ),
+    resource(
+      'typescript-handbook-generics',
+      'TypeScript Handbook: Generics',
+      'TypeScript',
+      'https://www.typescriptlang.org/docs/handbook/2/generics.html',
+      'guide',
+    ),
+    resource(
+      'tigerbeetle-tiger-style',
+      'Tiger Style',
+      'TigerBeetle',
+      'https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md',
+      'guide',
+    ),
+    resource(
+      'typescript-handbook-decorators',
+      'TypeScript Handbook: Decorators',
+      'TypeScript',
+      'https://www.typescriptlang.org/docs/handbook/decorators.html',
+    ),
+    resource(
+      'nestjs-request-lifecycle',
+      'NestJS Request Lifecycle',
+      'NestJS',
+      'https://docs.nestjs.com/faq/request-lifecycle',
+    ),
+  ],
   go: [
     resource(
       'go-official-tutorials',
@@ -1765,16 +2156,44 @@ export const learningPaths: LearningPathDefinition[] = [
     ],
     modules: [
       available('javascript-execution-model'),
-      roadmap(
-        'js-types-closures',
-        'Types, Scope, and Closures',
-        'Connect lexical scope to program behavior.',
-      ),
-      roadmap(
-        'js-async-patterns',
-        'Async JavaScript',
-        'Control promises, cancellation, and concurrency.',
-      ),
+      available('javascript-closures-scope', [
+        resource(
+          'javascript-mdn-closures',
+          'Closures',
+          'MDN Web Docs',
+          'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Closures',
+          'guide',
+        ),
+      ]),
+      available('javascript-async-patterns', [
+        resource(
+          'javascript-mdn-abortcontroller',
+          'AbortController',
+          'MDN Web Docs',
+          'https://developer.mozilla.org/en-US/docs/Web/API/AbortController',
+        ),
+      ]),
+    ],
+  }),
+  path({
+    slug: 'backend-typescript-nestjs',
+    title: 'Backend TypeScript with NestJS',
+    description:
+      'Move from type narrowing and generics to runtime assertions, decorators, and the NestJS request pipeline.',
+    trackSlug: 'languages',
+    level: 'intermediate',
+    outcomes: [
+      'Prove value shapes with narrowing and generics',
+      'Assert invariants at runtime boundaries',
+      'Structure NestJS services around cross-cutting concerns',
+    ],
+    prerequisites: ['javascript'],
+    modules: [
+      available('typescript-types-narrowing'),
+      available('typescript-generics'),
+      available('negative-space-assertions'),
+      available('aspect-oriented-decorators'),
+      available('nestjs-request-pipeline'),
     ],
   }),
   path({
@@ -2823,6 +3242,40 @@ export function validateLearningPathResources(item: LearningPathDefinition) {
   return Array.from(new Set(errors));
 }
 
+export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
+  const errors: string[] = [];
+  const regionIds = new Set(scene.regions.map((region) => region.id));
+  for (const duplicate of duplicates(scene.regions.map((region) => region.id)))
+    errors.push(`${slug}: duplicate runtime region ${duplicate}`);
+  if (scene.steps.length === 0) errors.push(`${slug}: empty runtime scene`);
+  scene.steps.forEach((step, index) => {
+    const at = `${slug}: runtime step ${index + 1}`;
+    for (const line of step.codeLines)
+      if (
+        !Number.isInteger(line) ||
+        line < 0 ||
+        line >= scene.code.lines.length
+      )
+        errors.push(`${at} code line ${line} out of range`);
+    for (const duplicate of duplicates(step.tokens.map((token) => token.id)))
+      errors.push(`${at} duplicate token ${duplicate}`);
+    for (const regionId of [
+      ...step.tokens.map((token) => token.regionId),
+      ...step.tokens.flatMap((token) => token.linkRegionId ?? []),
+      ...(step.activeRegionIds ?? []),
+    ])
+      if (!regionIds.has(regionId))
+        errors.push(`${at} unknown region ${regionId}`);
+    for (const token of step.tokens)
+      if (
+        token.progress !== undefined &&
+        !(token.progress >= 0 && token.progress <= 1)
+      )
+        errors.push(`${at} token ${token.id} progress out of range`);
+  });
+  return errors;
+}
+
 export function validateCatalog() {
   const errors: string[] = [];
   for (const duplicate of duplicates(tracks.map((item) => item.slug)))
@@ -2854,6 +3307,10 @@ export function validateCatalog() {
       errors.push(`${lesson.slug}: mismatched lesson assessment scope`);
     if (lesson.visualization === 'concept-flow' && !lesson.conceptFlow)
       errors.push(`${lesson.slug}: missing concept flow`);
+    if (lesson.visualization === 'runtime-scene' && !lesson.runtimeScene)
+      errors.push(`${lesson.slug}: missing runtime scene`);
+    if (lesson.runtimeScene)
+      errors.push(...validateRuntimeScene(lesson.slug, lesson.runtimeScene));
     if (lesson.conceptFlow) {
       const steps = lesson.conceptFlow.steps;
       if (

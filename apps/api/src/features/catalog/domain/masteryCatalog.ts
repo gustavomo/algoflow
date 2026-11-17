@@ -993,6 +993,422 @@ const seeds: Record<string, LessonMasterySeed> = {
         'Staff judgment makes risk and alternatives explicit while preserving safe progress.',
     },
   },
+  'javascript-closures-scope': {
+    recall: {
+      prompt: 'What does a closure capture from its enclosing scope?',
+      correct: 'Live bindings, not copies of their values',
+      distractors: [
+        'A snapshot of every value at creation time',
+        'Only global variables',
+        'The call stack of its caller',
+      ],
+      explanation:
+        'A closure keeps references to the bindings it uses, so later writes are visible to it.',
+    },
+    application: {
+      prompt:
+        'createCounter() returns increment and current over a local count. You call a.increment() twice and create b = createCounter(10). What do a.current() and b.current() return?',
+      correct: '2 and 10',
+      distractors: ['2 and 12', '12 and 12', '0 and 10'],
+      explanation:
+        'Each createCounter call creates a separate count binding, so the two counters never share state.',
+    },
+    debugging: {
+      prompt:
+        'A loop written with var i schedules three setTimeout callbacks that log i, and every callback logs 3. What is the cause?',
+      correct: 'All callbacks close over one function-scoped binding',
+      distractors: [
+        'setTimeout copies the value too late',
+        'The event loop reorders the callbacks',
+        'Arrow functions cannot read loop variables',
+      ],
+      explanation:
+        'var creates one binding for the whole loop; let creates a fresh binding per iteration.',
+    },
+    teachBack: {
+      prompt: 'Select the claims that belong in a correct scope explanation.',
+      correct: [
+        'Name lookup is fixed by where code is written',
+        'Lookup walks outward through enclosing scopes',
+        'A referenced binding stays alive while a closure can reach it',
+      ],
+      distractor: 'A function sees the variables of whoever calls it',
+      explanation:
+        'JavaScript is lexically scoped: the source structure, not the call site, decides which binding a name refers to.',
+    },
+    transfer: {
+      intent: 'interview',
+      prompt:
+        'A rate limiter module must track request counts per client, but no other module may read or reset them. Which design applies the lesson most directly?',
+      correct:
+        'A factory that keeps a Map in a closure and returns only check and record functions',
+      distractors: [
+        'Export the Map so callers can inspect it',
+        'Store the counts on globalThis',
+        'Pass the counts as an argument to every call',
+      ],
+      explanation:
+        'Closing over private state exposes behavior through an interface while making the state itself unreachable.',
+    },
+  },
+  'javascript-async-patterns': {
+    recall: {
+      prompt: 'What does an async function always return?',
+      correct: 'A promise',
+      distractors: [
+        'The awaited value directly',
+        'undefined until it finishes',
+        'A callback function',
+      ],
+      explanation:
+        'A returned value fulfills the promise and a thrown error rejects it.',
+    },
+    application: {
+      prompt:
+        'Three independent requests take 100 ms, 200 ms, and 300 ms. About how long does await Promise.all over all three take compared with awaiting them one by one in a loop?',
+      correct: 'About 300 ms instead of about 600 ms',
+      distractors: [
+        'About 600 ms in both cases',
+        'About 100 ms instead of about 300 ms',
+        'About 300 ms in both cases',
+      ],
+      explanation:
+        'Concurrent requests finish near the slowest one; sequential awaits add every duration together.',
+    },
+    debugging: {
+      prompt:
+        'A timeout implemented with Promise.race stops waiting, but the server still receives and processes every slow request. Why?',
+      correct: 'Racing a timer stops waiting but does not cancel the request',
+      distractors: [
+        'Promise.race retries the losing promise',
+        'The timer runs before the request starts',
+        'fetch ignores every rejection',
+      ],
+      explanation:
+        'Only a signal passed to the operation, such as an AbortSignal, makes the underlying work stop.',
+    },
+    teachBack: {
+      prompt: 'Select the claims in a correct explanation of async control.',
+      correct: [
+        'await pauses only the current async function',
+        'Promise.all rejects on the first rejection',
+        'An AbortSignal must be passed to the work it should cancel',
+      ],
+      distractor: 'await blocks the whole thread until the promise settles',
+      explanation:
+        'Continuations resume as microtasks, combinators encode a failure policy, and cancellation is cooperative.',
+    },
+    transfer: {
+      intent: 'exam',
+      prompt:
+        'A dashboard loads five independent widgets and must show every widget that succeeded even if some fail. Which approach fits?',
+      correct:
+        'Promise.allSettled, then render fulfilled results and mark rejected ones',
+      distractors: [
+        'Promise.all with one catch for the whole batch',
+        'Promise.race over the five requests',
+        'Await each widget in sequence and stop at the first error',
+      ],
+      explanation:
+        'allSettled reports every outcome, so partial failure does not discard successful results.',
+    },
+  },
+  'typescript-types-narrowing': {
+    recall: {
+      prompt:
+        'What makes a discriminated union narrowable with a single check?',
+      correct: 'Every member has the same literal field with a distinct value',
+      distractors: [
+        'Every member is a class',
+        'Every member has optional fields',
+        'The union has exactly two members',
+      ],
+      explanation:
+        'Checking the shared literal discriminant tells TypeScript exactly which member you hold.',
+    },
+    application: {
+      prompt:
+        'value has type string | number[] | null. After if (value === null) return; and if (typeof value === "string") return;, what is the type of value?',
+      correct: 'number[]',
+      distractors: ['string | number[]', 'unknown', 'never'],
+      explanation:
+        'Each check removes the members it ruled out, leaving only number[].',
+    },
+    debugging: {
+      prompt:
+        'A teammate adds a "cancelled" status to a Result union and the build fails at assertNever(result). What should they do?',
+      correct: 'Add a case that handles the new status',
+      distractors: [
+        'Cast result to never',
+        'Delete the default branch',
+        'Change assertNever to accept unknown',
+      ],
+      explanation:
+        'The error is the exhaustive check working: it points at the switch that does not handle the new member yet.',
+    },
+    teachBack: {
+      prompt: 'Select the claims in a correct narrowing explanation.',
+      correct: [
+        'typeof, in, and equality checks narrow a union',
+        'Control flow decides the type at each line',
+        'The leftover after every case is never',
+      ],
+      distractor: 'A type annotation validates data at runtime',
+      explanation:
+        'Narrowing is compile-time control-flow analysis; runtime data still needs runtime checks.',
+    },
+    transfer: {
+      intent: 'interview',
+      prompt:
+        'A payment webhook can be charge.succeeded, charge.failed, or refund.created, each with different fields. Which model lets the compiler catch an unhandled event type?',
+      correct:
+        'A union discriminated by the event type field, switched with an assertNever default',
+      distractors: [
+        'One interface with every field optional',
+        'A Record<string, unknown> checked with if statements',
+        'Separate any-typed handlers chosen by a string map',
+      ],
+      explanation:
+        'A discriminant gives each branch its exact fields, and the never default fails compilation when a new event is added.',
+    },
+  },
+  'typescript-generics': {
+    recall: {
+      prompt:
+        'What does T extends { length: number } guarantee inside a generic function?',
+      correct: 'Values of type T have at least a numeric length',
+      distractors: [
+        'T is exactly a string',
+        'T is an array of numbers',
+        'T has no other properties',
+      ],
+      explanation:
+        'A constraint states the minimum shape; callers may pass any type that has it.',
+    },
+    application: {
+      prompt:
+        'getProperty<T, K extends keyof T>(obj: T, key: K): T[K] is called with ({ id: 7, name: "Ada" }, "name"). What is the return type?',
+      correct: 'string',
+      distractors: ['number', 'string | number', 'unknown'],
+      explanation:
+        'K is inferred as "name", so the indexed access T[K] resolves to that property type.',
+    },
+    debugging: {
+      prompt:
+        'A helper typed as function first(items: any[]): any lets first(users).nmae compile and then crash. What fixes the cause?',
+      correct: 'Make it generic: first<T>(items: T[]): T | undefined',
+      distractors: [
+        'Return unknown and cast at every call site',
+        'Add a comment describing the element type',
+        'Wrap the call in try and catch',
+      ],
+      explanation:
+        'A type parameter links the element type to the result, so the misspelled property becomes a compile error.',
+    },
+    teachBack: {
+      prompt: 'Select the claims in a correct generics explanation.',
+      correct: [
+        'A type parameter connects positions that must agree',
+        'Constraints limit what the body may assume',
+        'keyof T produces the union of T keys',
+      ],
+      distractor: 'Generics make values change type at runtime',
+      explanation:
+        'Generics are compile-time relationships; they are erased and never change runtime values.',
+    },
+    transfer: {
+      intent: 'exam',
+      prompt:
+        'An update endpoint should accept any subset of a Settings type, but only its declared keys. Which type expresses that?',
+      correct: 'Partial<Settings>',
+      distractors: [
+        'Record<string, unknown>',
+        'ReturnType<Settings>',
+        'Settings | undefined',
+      ],
+      explanation:
+        'Partial makes every declared key optional while still rejecting keys Settings does not declare in object literals.',
+    },
+  },
+  'negative-space-assertions': {
+    recall: {
+      prompt: 'In negative-space programming, what does an assertion state?',
+      correct: 'A condition that must never be violated at that point',
+      distractors: [
+        'A log message for operators',
+        'An expected user error to display',
+        'A performance hint for the compiler',
+      ],
+      explanation:
+        'Assertions describe impossible states so the program stops the moment one appears.',
+    },
+    application: {
+      prompt:
+        'withdraw(balance, amount) must never overdraw. Which check is the precondition?',
+      correct: 'Assert amount <= balance before subtracting',
+      distractors: [
+        'Assert the result is a number after returning',
+        'Log the balance after the update',
+        'Catch any error and return the old balance',
+      ],
+      explanation:
+        'A precondition checks the caller obligation before the operation can corrupt state.',
+    },
+    debugging: {
+      prompt:
+        'A typed function amount: number stored a negative transfer that corrupted ledgers for a week. Why did the type not prevent it?',
+      correct: 'Types are erased and do not constrain numeric ranges',
+      distractors: [
+        'The type should have been any',
+        'Strict mode was enabled',
+        'Negative numbers are not numbers in TypeScript',
+      ],
+      explanation:
+        'number accepts negative values, NaN, and Infinity; value ranges need runtime assertions.',
+    },
+    teachBack: {
+      prompt: 'Select the claims in a sound explanation of negative space.',
+      correct: [
+        'Validate untrusted input at the boundary',
+        'Crash on a violated invariant instead of continuing',
+        'Test rejected inputs as well as accepted ones',
+      ],
+      distractor: 'Catch assertion failures and keep processing',
+      explanation:
+        'Failing fast keeps the bug close to the symptom and prevents silent corruption.',
+    },
+    transfer: {
+      intent: 'interview',
+      prompt:
+        'An inventory service applies stock deltas from a queue. Which addition best applies the lesson?',
+      correct:
+        'Assert each delta is an integer and the resulting stock never drops below zero before writing',
+      distractors: [
+        'Clamp negative stock to zero and continue',
+        'Retry the message until the write succeeds',
+        'Log a warning and apply the delta anyway',
+      ],
+      explanation:
+        'Asserting the invariant before the write rejects the impossible state instead of persisting or hiding it.',
+    },
+  },
+  'aspect-oriented-decorators': {
+    recall: {
+      prompt: 'What makes a concern cross-cutting?',
+      correct: 'It repeats across many methods without changing what they mean',
+      distractors: [
+        'It is the core business rule of one method',
+        'It only runs during tests',
+        'It must be written in a separate language',
+      ],
+      explanation:
+        'Logging, caching, retries, and timing appear everywhere but are not the method job.',
+    },
+    application: {
+      prompt:
+        'A method has @log written above @retry(3), and the first two attempts fail. How many log entries does @log produce for the call?',
+      correct: 'One entry covering all attempts',
+      distractors: ['Three entries', 'Two entries', 'No entries'],
+      explanation:
+        'Decorators apply bottom-up, so log wraps the retrying function and sees a single call.',
+    },
+    debugging: {
+      prompt:
+        'After adding @retry(3) to createPayment, some customers are charged twice. What is the cause?',
+      correct: 'Retry wraps a non-idempotent operation',
+      distractors: [
+        'Decorators run only once per class',
+        'The retry count is too low',
+        'TypeScript removes decorators at runtime',
+      ],
+      explanation:
+        'Around advice can repeat a call; only idempotent operations are safe to retry automatically.',
+    },
+    teachBack: {
+      prompt: 'Select the claims in a correct AOP explanation.',
+      correct: [
+        'A join point is where advice attaches',
+        'Around advice decides whether and how the call proceeds',
+        'Decorator order changes the resulting behavior',
+      ],
+      distractor: 'Decorators make control flow easier to see',
+      explanation:
+        'Aspects remove duplication at the cost of hiding control flow behind annotations.',
+    },
+    transfer: {
+      intent: 'exam',
+      prompt:
+        'Twenty repository methods each start a timer, call the database, and record a duration metric. Which change applies the lesson?',
+      correct:
+        'A @timed method decorator that wraps each call and records its duration',
+      distractors: [
+        'Copy a shared timing helper call into every method',
+        'Move all queries into one large method',
+        'Record metrics only when a method throws',
+      ],
+      explanation:
+        'A uniform concern repeated at many join points is a good fit for one around-advice decorator.',
+    },
+  },
+  'nestjs-request-pipeline': {
+    recall: {
+      prompt: 'Which NestJS stage runs first for an incoming request?',
+      correct: 'Middleware',
+      distractors: ['Guards', 'Pipes', 'Exception filters'],
+      explanation:
+        'Middleware sees the raw request before guards, interceptors, pipes, and the handler.',
+    },
+    application: {
+      prompt:
+        'A global ValidationPipe uses whitelist and forbidNonWhitelisted. A client posts { "sku": "A1", "quantity": 2, "admin": true } to a DTO declaring only sku and quantity. What happens?',
+      correct: 'The request fails with 400 Bad Request',
+      distractors: [
+        'The handler receives admin: true',
+        'admin is silently removed and the handler runs',
+        'The guard returns 403 Forbidden',
+      ],
+      explanation:
+        'forbidNonWhitelisted rejects undeclared properties instead of stripping them.',
+    },
+    debugging: {
+      prompt:
+        'An API key guard compares a request header with process.env.API_KEY and lets every request through in a fresh environment. What is wrong?',
+      correct:
+        'A missing key equals a missing header, so the guard returns true',
+      distractors: [
+        'Guards run after the handler',
+        'Guards cannot read headers',
+        'The interceptor overrides the guard',
+      ],
+      explanation:
+        'undefined === undefined is true; the guard must reject when the expected key is not configured.',
+    },
+    teachBack: {
+      prompt: 'Select the claims in a correct pipeline explanation.',
+      correct: [
+        'Guards decide access before pipes run',
+        'Interceptors wrap the handler before and after',
+        'Filters turn thrown exceptions into responses',
+      ],
+      distractor: 'Pipes run after the handler returns',
+      explanation:
+        'Each stage is a join point with one responsibility in a fixed order.',
+    },
+    transfer: {
+      intent: 'interview',
+      prompt:
+        'A team must add a correlation ID to every response, reject unauthenticated calls, and convert domain errors into a stable error shape. Where does each concern belong?',
+      correct:
+        'Middleware for the ID, a guard for authentication, a filter for errors',
+      distractors: [
+        'All three inside each controller method',
+        'A pipe for the ID, middleware for errors, an interceptor for authentication',
+        'A filter for the ID, a pipe for authentication, a guard for errors',
+      ],
+      explanation:
+        'Matching each concern to its stage keeps controllers focused and makes the order predictable.',
+    },
+  },
 };
 
 function choice(

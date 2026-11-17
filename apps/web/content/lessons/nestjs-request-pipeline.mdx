@@ -1,0 +1,194 @@
+NestJS is aspect-oriented programming applied to HTTP. Each cross-cutting concern has a named join point in the request lifecycle, so controllers keep only the business decision.
+
+<Hint>
+  Ask where a concern belongs before writing it: does it need the raw request, a
+  yes-or-no decision, the handler's result, the arguments, or the error?
+</Hint>
+
+## The order of the pipeline
+
+A request flows through these stages:
+
+- **Middleware**: raw request and response, before routing decisions are made.
+- **Guards**: decide whether this request may reach the handler.
+- **Interceptors (before)**: around advice that starts before the handler.
+- **Pipes**: validate and transform the handler's arguments.
+- **Handler**: the controller method.
+- **Interceptors (after)**: the same interceptors observe or map the result.
+- **Exception filters**: turn a thrown exception into a response.
+
+Guards, interceptors, and pipes resolve from global to controller to route. Filters resolve the other way: the most specific filter handles the exception first. The examples assume NestJS v10 or v11 on Express with the `experimentalDecorators` and `emitDecoratorMetadata` compiler options that the Nest CLI generates. Nest uses this legacy decorator model, not the TypeScript 5 standard decorators.
+
+## Middleware
+
+```ts
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import type { NextFunction, Request, Response } from 'express';
+
+@Injectable()
+export class RequestIdMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction) {
+    res.setHeader('x-request-id', req.header('x-request-id') ?? randomUUID());
+    next();
+  }
+}
+```
+
+## Guard
+
+Returning `false` makes Nest respond with 403 Forbidden before any pipe or handler runs.
+
+```ts
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import type { Request } from 'express';
+
+@Injectable()
+export class ApiKeyGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const expected = process.env.API_KEY;
+    // Negative space: a missing key must never match a missing header.
+    if (!expected) return false;
+    const request = context.switchToHttp().getRequest<Request>();
+    return request.header('x-api-key') === expected;
+  }
+}
+```
+
+## Interceptor
+
+An interceptor is around advice: code before `next.handle()` runs first, and RxJS operators on the returned stream run after the handler.
+
+```ts
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
+import { Observable, tap } from 'rxjs';
+
+@Injectable()
+export class TimingInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const started = Date.now();
+    return next
+      .handle()
+      .pipe(
+        tap(() =>
+          console.log(
+            `${context.getHandler().name} took ${Date.now() - started}ms`,
+          ),
+        ),
+      );
+  }
+}
+```
+
+## Pipes and DTOs as negative space
+
+A DTO declares the only shape the handler may receive. `ValidationPipe` enforces it with `class-validator` and `class-transformer`, so invalid bodies never reach business code.
+
+```ts
+import { IsInt, IsNotEmpty, IsString, Max, Min } from 'class-validator';
+
+export class CreateOrderDto {
+  @IsString()
+  @IsNotEmpty()
+  sku!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  quantity!: number;
+}
+```
+
+```ts
+// main.ts
+import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  await app.listen(3000);
+}
+void bootstrap();
+```
+
+`whitelist` strips properties the DTO does not declare, `forbidNonWhitelisted` rejects them instead, and `transform` gives the handler a real `CreateOrderDto` instance. A body like `{ "sku": "", "quantity": 0, "admin": true }` fails with 400 Bad Request.
+
+## Handler and wiring
+
+```ts
+// orders.module.ts: the classes above live in their own files and are imported here.
+import { randomUUID } from 'node:crypto';
+import {
+  Body,
+  Controller,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  Post,
+  UseFilters,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+
+@Controller('orders')
+@UseGuards(ApiKeyGuard)
+@UseInterceptors(TimingInterceptor)
+@UseFilters(HttpErrorFilter)
+export class OrdersController {
+  @Post()
+  create(@Body() dto: CreateOrderDto) {
+    return { id: randomUUID(), ...dto };
+  }
+}
+
+@Module({ controllers: [OrdersController] })
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes(OrdersController);
+  }
+}
+```
+
+## Exception filter
+
+If a guard, interceptor, pipe, or handler throws, the filter shapes one consistent error response.
+
+```ts
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+
+@Catch(HttpException)
+export class HttpErrorFilter implements ExceptionFilter {
+  catch(exception: HttpException, host: ArgumentsHost) {
+    const http = host.switchToHttp();
+    const response = http.getResponse<Response>();
+    const request = http.getRequest<Request>();
+    const status = exception.getStatus();
+    response.status(status).json({
+      statusCode: status,
+      path: request.url,
+      error: exception.getResponse(),
+    });
+  }
+}
+```
+
+The controller now contains one line of business logic. Identity, access, timing, validation, and error shape each live at their own join point and can be tested on their own.

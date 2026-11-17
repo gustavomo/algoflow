@@ -23,6 +23,8 @@
   --color-success-muted: 20 43 29;
   --color-warning-muted: 50 42 10;
   --color-danger-muted: 52 23 30;
+  --color-scene-orange: 253 186 116;
+  --color-scene-teal: 94 234 212;
 }
 
 * {
@@ -105,6 +107,23 @@ textarea:disabled {
   background: rgb(var(--color-surface-raised));
   padding: 0.12rem 0.35rem;
   color: rgb(var(--color-ink));
+}
+
+.lesson-copy pre {
+  margin-top: 1rem;
+  overflow-x: auto;
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 0.35rem;
+  background: rgb(var(--color-surface-raised));
+  padding: 0.85rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.lesson-copy pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
 @layer components {

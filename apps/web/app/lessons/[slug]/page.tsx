@@ -81,11 +81,12 @@ export default async function LessonPage({
             lessonSlug={lesson.slug}
           />
         </article>
-        <section className="order-first min-w-0 xl:order-none xl:sticky xl:top-28 xl:self-start">
+        <section className="order-first min-w-0 xl:order-none xl:sticky xl:top-24 xl:max-h-[calc(100vh-6.5rem)] xl:self-start xl:overflow-y-auto">
           <LessonVizPlayer
             slug={lesson.slug}
             visualization={lesson.visualization}
             conceptFlow={lesson.conceptFlow}
+            runtimeScene={lesson.runtimeScene}
           />
         </section>
       </div>

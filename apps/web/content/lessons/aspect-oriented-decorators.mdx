@@ -1,0 +1,121 @@
+Logging, caching, retries, timing, and authorization appear in almost every service method, yet none of them is the method's real job. Aspect-oriented programming (AOP) moves these cross-cutting concerns out of business code and attaches them at well-defined points.
+
+<Hint>
+  If you would copy the same five lines into twenty methods, and those lines do
+  not change what the method means, it is a cross-cutting concern.
+</Hint>
+
+## Vocabulary
+
+- A **join point** is a place where behavior can attach. In TypeScript decorators, that is a class, method, accessor, or field.
+- **Advice** is the code that runs there: **before** the call, **after** it, or **around** it, wrapping the call and deciding whether and how it proceeds.
+- An **aspect** packages advice for one concern, such as logging.
+
+## A method decorator
+
+TypeScript 5 implements the standard ECMAScript decorators. A method decorator receives the original method and returns a replacement, which is around advice.
+
+```ts
+function log<This, Args extends unknown[], Return>(
+  target: (this: This, ...args: Args) => Return,
+  context: ClassMethodDecoratorContext<
+    This,
+    (this: This, ...args: Args) => Return
+  >,
+) {
+  const name = String(context.name);
+  return function (this: This, ...args: Args): Return {
+    console.log(`→ ${name}`, args); // before
+    const result = target.apply(this, args);
+    console.log(`← ${name}`, result); // after
+    return result;
+  };
+}
+
+class PriceService {
+  @log
+  total(items: number[]): number {
+    return items.reduce((sum, item) => sum + item, 0);
+  }
+}
+
+new PriceService().total([5, 10]); // logs the call and the result 15
+```
+
+## Caching and retry as around advice
+
+```ts
+function memoize<This, Return>(
+  target: (this: This, key: string) => Return,
+  _context: ClassMethodDecoratorContext,
+) {
+  const cache = new Map<string, Return>();
+  return function (this: This, key: string): Return {
+    if (!cache.has(key)) cache.set(key, target.call(this, key));
+    return cache.get(key)!;
+  };
+}
+
+function retry(attempts: number) {
+  return function <This, Args extends unknown[], Return>(
+    target: (this: This, ...args: Args) => Promise<Return>,
+    _context: ClassMethodDecoratorContext,
+  ) {
+    return async function (this: This, ...args: Args): Promise<Return> {
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          return await target.apply(this, args);
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError;
+    };
+  };
+}
+
+class RatesClient {
+  @retry(3)
+  async fetchRate(currency: string): Promise<number> {
+    const response = await fetch(`https://rates.example.com/${currency}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json()).rate;
+  }
+}
+```
+
+`memoize` caches one instance-independent map per decorated method, so use it only for pure methods. `retry` should only wrap idempotent operations; retrying a payment can charge twice.
+
+## Ordering
+
+Decorators listed on one method apply bottom-up: the decorator closest to the method wraps first, and the top one becomes the outermost layer. With `@log` above `@retry(3)`, one log line covers all attempts. Swap them and `retry` repeats the logged call, so each attempt is logged.
+
+## Stacking all three
+
+The scene beside this lesson traces two calls through this class. `requestRate` stands for the `fetch` call above and fails once with HTTP 503.
+
+```ts
+class RatesClient {
+  @log
+  @memoize
+  @retry(3)
+  async fetchRate(currency: string): Promise<number> {
+    return requestRate(currency); // may reject with HTTP 503
+  }
+}
+
+const client = new RatesClient();
+console.log(await client.fetchRate('EUR'));
+console.log(await client.fetchRate('EUR'));
+```
+
+`@log` is synchronous advice around an async method, so its after line prints a pending promise, not the rate. `@memoize` caches that promise, which is why the second call never reaches `@retry` or the method body, and why a promise that rejects after every attempt would be cached too.
+
+## Trade-offs
+
+- **Hidden control flow.** A one-word annotation can change timing, error behavior, and how many times code runs. Readers must know what every decorator does.
+- **Ordering bugs.** Stacking concerns makes the result depend on the order, which is easy to change by accident.
+- **Two decorator models.** Frameworks such as NestJS and TypeORM still use the older `experimentalDecorators` mode with a different signature. Do not mix the two in one project.
+
+Use aspects for concerns that are genuinely uniform. If the behavior varies per method, an explicit call is easier to read.

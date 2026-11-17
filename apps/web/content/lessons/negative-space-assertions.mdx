@@ -1,0 +1,76 @@
+Most code describes what should happen. Negative-space programming also states what must never happen, and stops the program the moment it does. The term was popularized by TigerBeetle's Tiger Style guide, which treats assertions as a core part of design rather than a debugging afterthought.
+
+<Hint>
+  For every function, ask two questions: what must be true for this to be
+  correct, and what state would mean something already went wrong?
+</Hint>
+
+## Invariants, preconditions, and postconditions
+
+- A **precondition** must hold before a function runs: the caller's obligation.
+- A **postcondition** must hold after it returns: the function's promise.
+- An **invariant** must hold at every observable point: the data structure's promise.
+
+```ts
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(`Assertion failed: ${message}`);
+}
+
+function withdraw(balance: number, amount: number): number {
+  assert(
+    Number.isInteger(amount) && amount > 0,
+    'amount is a positive integer',
+  );
+  assert(amount <= balance, 'withdrawal never exceeds balance');
+  const next = balance - amount;
+  assert(next >= 0, 'balance never becomes negative');
+  return next;
+}
+```
+
+The first two assertions are preconditions. The last is a postcondition. Together they describe the negative space: a non-integer, zero, or negative amount, an overdraft, and a negative balance can never leave this function.
+
+## Fail fast at boundaries
+
+Validate where untrusted data enters: HTTP bodies, queue messages, files, environment variables, and third-party responses. Inside the boundary, assertions document assumptions that should already be guaranteed. A failed assertion there is a bug, so crash loudly instead of trying to continue.
+
+```ts
+function readPort(env: Record<string, string | undefined>): number {
+  const port = Number(env.PORT);
+  assert(Number.isInteger(port), 'PORT is an integer');
+  assert(port > 0 && port < 65536, 'PORT is within the TCP range');
+  return port;
+}
+```
+
+## What types cover and what they do not
+
+TypeScript erases types at runtime. `amount: number` rules out a string at compile time but still accepts `-5`, `NaN`, `Infinity`, and `0.1 + 0.2`. Types cannot see values arriving through `JSON.parse`, and a cast like `as User` asserts nothing at all. Use types to make whole categories of mistakes unrepresentable, and runtime assertions for value ranges, relationships between fields, and data from outside.
+
+## The cost of silent corruption
+
+A crash is visible, local, and has a stack trace. A wrong value that keeps flowing is invisible: it gets written, replicated, and backed up, and the failure surfaces days later far from its cause. Failing fast trades a small amount of availability for a large amount of correctness, and it shrinks the distance between the bug and the symptom.
+
+## Pair positive and negative space in tests
+
+Test that valid inputs work and that invalid inputs are rejected. A suite with only happy paths cannot detect a missing guard.
+
+```ts
+import { describe, expect, it } from 'vitest';
+
+describe('withdraw', () => {
+  it('subtracts a valid amount', () => {
+    expect(withdraw(100, 30)).toBe(70);
+  });
+
+  it('rejects an overdraft instead of going negative', () => {
+    expect(() => withdraw(100, 130)).toThrow(/never exceeds balance/);
+  });
+
+  it('rejects non-integer amounts', () => {
+    expect(() => withdraw(100, 0.5)).toThrow(/positive integer/);
+  });
+});
+```
+
+Keep assertions cheap and free of side effects, and do not use them for expected errors such as a user typing a wrong password. Those are product behavior, not violated invariants.

@@ -15,6 +15,13 @@ import StaffRoleAndImpactLesson from '../content/lessons/staff-role-and-impact.m
 import TechnicalStrategyLesson from '../content/lessons/technical-strategy.mdx';
 import LeadingCrossTeamChangeLesson from '../content/lessons/leading-cross-team-change.mdx';
 import VectorsForMachineLearningLesson from '../content/lessons/vectors-for-machine-learning.mdx';
+import JavaScriptClosuresScopeLesson from '../content/lessons/javascript-closures-scope.mdx';
+import JavaScriptAsyncPatternsLesson from '../content/lessons/javascript-async-patterns.mdx';
+import TypeScriptTypesNarrowingLesson from '../content/lessons/typescript-types-narrowing.mdx';
+import TypeScriptGenericsLesson from '../content/lessons/typescript-generics.mdx';
+import NegativeSpaceAssertionsLesson from '../content/lessons/negative-space-assertions.mdx';
+import AspectOrientedDecoratorsLesson from '../content/lessons/aspect-oriented-decorators.mdx';
+import NestJsRequestPipelineLesson from '../content/lessons/nestjs-request-pipeline.mdx';
 
 export const lessonContentBySlug: Record<string, typeof BubbleSortLesson> = {
   'bfs-grid-go': BfsGridLesson,
@@ -34,4 +41,11 @@ export const lessonContentBySlug: Record<string, typeof BubbleSortLesson> = {
   'technical-strategy': TechnicalStrategyLesson,
   'leading-cross-team-change': LeadingCrossTeamChangeLesson,
   'vectors-for-machine-learning': VectorsForMachineLearningLesson,
+  'javascript-closures-scope': JavaScriptClosuresScopeLesson,
+  'javascript-async-patterns': JavaScriptAsyncPatternsLesson,
+  'typescript-types-narrowing': TypeScriptTypesNarrowingLesson,
+  'typescript-generics': TypeScriptGenericsLesson,
+  'negative-space-assertions': NegativeSpaceAssertionsLesson,
+  'aspect-oriented-decorators': AspectOrientedDecoratorsLesson,
+  'nestjs-request-pipeline': NestJsRequestPipelineLesson,
 };

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMachine } from '@xstate/react';
 import type {
   ConceptFlowNarrative,
+  RuntimeScene,
   VisualizationKind,
 } from '@algoflow/contracts';
 import { createBubbleSortSteps } from '../../lib/algorithms/bubbleSort';
@@ -20,18 +21,33 @@ import ConceptFlowViz from '../animation/ConceptFlowViz';
 import ComplexityViz from '../animation/ComplexityViz';
 import GridTraversalViz from '../animation/GridTraversalViz';
 import PlaybackBar from '../animation/PlaybackBar';
+import RuntimeSceneViz from '../animation/RuntimeSceneViz';
 import TwoPointersViz from '../animation/TwoPointersViz';
+
+const RUNTIME_SCENE_SPEED_MS = 1200;
 
 export default function LessonVizPlayer({
   slug,
   visualization: visualizationKind,
   conceptFlow,
+  runtimeScene,
 }: {
   slug: string;
   visualization: VisualizationKind;
   conceptFlow?: ConceptFlowNarrative;
+  runtimeScene?: RuntimeScene;
 }) {
-  const [state, send] = useMachine(playbackMachine);
+  // Narrated runtime steps need reading time, so they start at the 0.5×
+  // preset. Seeding the machine context (not sending SPEED from an effect)
+  // keeps the server-rendered selector and the hydrated one in agreement.
+  const [state, send] = useMachine(() =>
+    visualizationKind === 'runtime-scene'
+      ? playbackMachine.withContext({
+          ...playbackMachine.context,
+          speedMs: RUNTIME_SCENE_SPEED_MS,
+        })
+      : playbackMachine,
+  );
   const [bubbleMode, setBubbleMode] = useState<'challenge' | 'review'>(
     'challenge',
   );
@@ -48,8 +64,10 @@ export default function LessonVizPlayer({
       return createGridTraversalSteps('dfs');
     if (visualizationKind === 'concept-flow' && conceptFlow)
       return conceptFlow.steps;
+    if (visualizationKind === 'runtime-scene' && runtimeScene)
+      return runtimeScene.steps;
     return createComplexitySteps();
-  }, [conceptFlow, visualizationKind]);
+  }, [conceptFlow, runtimeScene, visualizationKind]);
 
   useEffect(() => {
     send({ type: 'SETUP', totalSteps: sequence.length });
@@ -124,6 +142,19 @@ export default function LessonVizPlayer({
     );
   }
 
+  if (visualizationKind === 'runtime-scene')
+    visualization = runtimeScene ? (
+      <RuntimeSceneViz
+        scene={runtimeScene}
+        step={sequence[index] as RuntimeScene['steps'][number]}
+        stepIndex={index}
+      />
+    ) : (
+      <p className="border-y border-line py-10 text-center text-sm text-subtle">
+        This lesson&apos;s runtime scene is unavailable.
+      </p>
+    );
+
   if (visualizationKind === 'bubble-sort')
     return (
       <div>
@@ -168,7 +199,14 @@ export default function LessonVizPlayer({
   return (
     <div>
       {visualization}
-      <PlaybackBar state={state} send={send} />
+      {visualizationKind === 'runtime-scene' ? (
+        // Tall scenes scroll inside the sticky player; keep the controls in view.
+        <div className="xl:sticky xl:bottom-0 xl:bg-canvas xl:pb-1">
+          <PlaybackBar state={state} send={send} />
+        </div>
+      ) : (
+        <PlaybackBar state={state} send={send} />
+      )}
     </div>
   );
 }
