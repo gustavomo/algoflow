@@ -7,32 +7,21 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import {
-  LayoutGroup,
-  motion,
-  useReducedMotion,
-  type Transition,
-} from 'framer-motion';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import type {
   RuntimeScene,
   RuntimeSceneActionTone,
   RuntimeSceneRegion,
-  RuntimeSceneRegionTone,
   RuntimeSceneStep,
   RuntimeSceneToken,
 } from '@algoflow/contracts';
 import {
   INSTANT,
+  MOVE,
   tokenExitVariant,
 } from '../../lib/animation/runtimeSceneMotion';
-
-const TONE_VAR: Record<RuntimeSceneRegionTone, string> = {
-  green: '--color-success',
-  red: '--color-danger',
-  yellow: '--color-warning',
-  orange: '--color-scene-orange',
-  teal: '--color-scene-teal',
-};
+import { TONE_VAR, tone } from '../../lib/animation/runtimeSceneTone';
+import { ArrayRegion, GridRegion } from './RuntimeSceneData';
 
 const ACTION_TONE_VAR: Record<RuntimeSceneActionTone, string> = {
   compare: '--color-warning',
@@ -48,11 +37,6 @@ const CODE_PADDING = 8;
 // The DOM is only measured in the browser; on the server this is a no-op.
 const useIsomorphicLayoutEffect =
   typeof window === 'undefined' ? useEffect : useLayoutEffect;
-
-const tone = (variable: string, alpha = 1) =>
-  `rgb(var(${variable}) / ${alpha})`;
-
-const MOVE: Transition = { type: 'spring', stiffness: 240, damping: 26 };
 
 function tokenStyle(
   token: RuntimeSceneToken,
@@ -87,6 +71,7 @@ interface LeavingToken {
 }
 
 const EXIT_MS = 240;
+const FLY_IN_MS = 420;
 
 /** Tokens of `previous` that no longer exist anywhere in `next`. */
 function poppedTokens(
@@ -146,12 +131,44 @@ function Token({
   reduced: boolean;
 }) {
   const style = tokenStyle(token, region);
+  // A token discovered on a grid flies in from its cell instead of fading in.
+  const element = useRef<HTMLDivElement>(null);
+  const fliesIn = useRef(
+    isNew && !reduced && token.cell && token.cell.regionId !== region.id
+      ? `${token.cell.regionId}:${token.cell.index}`
+      : null,
+  );
+  useIsomorphicLayoutEffect(() => {
+    const node = element.current;
+    const origin =
+      fliesIn.current &&
+      node
+        ?.closest('[data-scene]')
+        ?.querySelector(`[data-grid-cell="${fliesIn.current}"]`);
+    if (!node || !origin || typeof node.animate !== 'function') return;
+    const from = origin.getBoundingClientRect();
+    const to = node.getBoundingClientRect();
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+    const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+    node.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(0.7)`, opacity: 0.5 },
+        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+      ],
+      { duration: FLY_IN_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    );
+  }, []);
   return (
     <motion.div
+      ref={element}
       layoutId={token.id}
       layout="position"
       data-token={token.id}
-      initial={isNew && !reduced ? { opacity: 0, scale: 0.6 } : false}
+      initial={
+        isNew && !reduced && !fliesIn.current
+          ? { opacity: 0, scale: 0.6 }
+          : false
+      }
       animate={{ opacity: 1, scale: 1 }}
       transition={reduced ? INSTANT : MOVE}
       className={tokenClass(region)}
@@ -204,6 +221,9 @@ const BODY_CLASS: Record<RuntimeSceneRegion['kind'], string> = {
   console: 'min-h-[48px] flex-col',
   // One station of the strip: its tokens stack and may wrap their label.
   pipeline: 'min-h-[52px] flex-col items-stretch justify-start sm:min-h-[60px]',
+  // Data regions are drawn by ArrayRegion and GridRegion, not by Region.
+  array: '',
+  grid: '',
 };
 
 function Region({
@@ -307,11 +327,13 @@ function CodePanel({
   scene,
   step,
   reduced,
+  sceneFirst,
   className = '',
 }: {
   scene: RuntimeScene;
   step: RuntimeSceneStep;
   reduced: boolean;
+  sceneFirst: boolean;
   className?: string;
 }) {
   const highlighted = new Set(step.codeLines);
@@ -369,7 +391,7 @@ function CodePanel({
     <div
       ref={scroller}
       data-code-panel
-      className={`max-h-[126px] overflow-auto rounded-lg border border-line bg-canvas/70 sm:max-h-[172px] ${className}`}
+      className={`max-h-[126px] overflow-auto rounded-lg border border-line bg-canvas/70 sm:max-h-[172px] ${className} ${sceneFirst ? 'sm:!order-4' : ''}`}
     >
       <div className="relative sm:min-w-max" style={{ padding: CODE_PADDING }}>
         <motion.div
@@ -534,16 +556,18 @@ function ConsolePanel({
 function ActionCaption({
   action,
   reduced,
+  sceneFirst,
 }: {
   action: RuntimeSceneStep['action'];
   reduced: boolean;
+  sceneFirst: boolean;
 }) {
   const variable = ACTION_TONE_VAR[action?.tone ?? 'compare'];
   return (
     <div
       aria-hidden
       data-action={action?.tone ?? (action ? 'compare' : 'none')}
-      className="order-2 flex min-h-[2.25rem] items-center rounded-md border px-2.5 py-1.5 transition-colors duration-300 sm:order-3"
+      className={`order-2 flex min-h-[2.25rem] items-center rounded-md border px-2.5 py-1.5 transition-colors duration-300 sm:order-3 ${sceneFirst ? 'sm:!order-2' : ''}`}
       style={{
         borderColor: action ? tone(variable, 0.45) : 'transparent',
         background: action ? tone(variable, 0.07) : 'transparent',
@@ -599,12 +623,25 @@ export default function RuntimeSceneViz({
   scene,
   step,
   stepIndex,
+  sceneFirst: sceneFirstProp,
 }: {
   scene: RuntimeScene;
   step: RuntimeSceneStep;
   stepIndex: number;
+  /**
+   * Lead with the scene at every width (scene, caption, narration, code from
+   * `sm` up) instead of only on phones. Defaults to on for array and grid
+   * scenes: the data is the lesson, and a grid below the code would fall out
+   * of the sticky desktop player.
+   */
+  sceneFirst?: boolean;
 }) {
   const reduced = Boolean(useReducedMotion());
+  const sceneFirst =
+    sceneFirstProp ??
+    scene.regions.some(
+      (region) => region.kind === 'array' || region.kind === 'grid',
+    );
   // What the previous rendered step contained, so only genuinely new tokens
   // and output lines animate in. Seeded with the first step for a static SSR.
   const previousIds = useRef(new Set(step.tokens.map((token) => token.id)));
@@ -643,6 +680,11 @@ export default function RuntimeSceneViz({
   const queues = byKind('queue');
   const consoles = byKind('console');
   const pipeline = byKind('pipeline');
+  const arrays = byKind('array');
+  const grids = byKind('grid');
+  // A stack next to a grid is its frontier: the two share one row.
+  const gridStacks = grids.length > 0 ? stacks : [];
+  const freeStacks = grids.length > 0 ? [] : stacks;
   const regionById = new Map(
     scene.regions.map((region) => [region.id, region]),
   );
@@ -733,11 +775,12 @@ export default function RuntimeSceneViz({
         {step.label}
       </p>
       {/* Visual order: scene, caption, code, narration on phones (scene
-          first); narration, code, caption, scene from `sm` up. */}
+          first); narration, code, caption, scene from `sm` up, unless the
+          scene leads there too. */}
       <div className="mt-2 grid gap-2 sm:mt-3 sm:gap-3">
         <div
           aria-live="polite"
-          className="order-4 border-l-2 border-line-strong pl-3 sm:order-1 sm:min-h-[7rem] sm:pl-4"
+          className={`order-4 border-l-2 border-line-strong pl-3 sm:order-1 sm:min-h-[7rem] sm:pl-4 ${sceneFirst ? 'sm:!order-3' : ''}`}
         >
           <p className="hidden font-mono text-[10px] uppercase tracking-[0.2em] text-subtle sm:block">
             Step {stepIndex + 1} of {scene.steps.length}
@@ -753,6 +796,7 @@ export default function RuntimeSceneViz({
           scene={scene}
           step={step}
           reduced={reduced}
+          sceneFirst={sceneFirst}
           className="order-3 sm:order-2"
         />
         {hasActions && (
@@ -762,11 +806,12 @@ export default function RuntimeSceneViz({
               (isFinal ? { text: '✓ complete', tone: 'ok' } : undefined)
             }
             reduced={reduced}
+            sceneFirst={sceneFirst}
           />
         )}
         <div
           data-scene
-          className="relative order-1 grid gap-2 sm:order-4 sm:gap-3"
+          className={`relative order-1 grid gap-2 sm:order-4 sm:gap-3 ${sceneFirst ? 'sm:!order-1' : ''}`}
         >
           <LayoutGroup id="runtime-scene">
             {pipeline.length > 0 && (
@@ -799,9 +844,51 @@ export default function RuntimeSceneViz({
                 </ol>
               </motion.div>
             )}
-            {(stacks.length > 0 || boxes.length > 0 || hasEventLoop) && (
+            {arrays.map((region) => {
+              const view = step.arrays?.find(
+                (item) => item.regionId === region.id,
+              );
+              return (
+                view && (
+                  <ArrayRegion
+                    key={region.id}
+                    region={region}
+                    view={view}
+                    active={active.has(region.id)}
+                    reduced={reduced}
+                  />
+                )
+              );
+            })}
+            {grids.length > 0 && (
+              <div
+                className={`grid gap-2 sm:gap-3 ${gridStacks.length > 0 ? 'grid-cols-[minmax(0,1fr)_5.5rem] sm:grid-cols-[minmax(0,1fr)_8rem]' : ''}`}
+              >
+                {grids.map((region) => {
+                  const view = step.grids?.find(
+                    (item) => item.regionId === region.id,
+                  );
+                  return (
+                    view && (
+                      <GridRegion
+                        key={region.id}
+                        region={region}
+                        view={view}
+                        tokens={tokensIn(region.id)}
+                        active={active.has(region.id)}
+                        reduced={reduced}
+                      />
+                    )
+                  );
+                })}
+                {gridStacks.map((region) => (
+                  <Region key={region.id} {...regionProps(region)} />
+                ))}
+              </div>
+            )}
+            {(freeStacks.length > 0 || boxes.length > 0 || hasEventLoop) && (
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                {stacks.map((region) => (
+                {freeStacks.map((region) => (
                   <Region
                     key={region.id}
                     {...regionProps(region)}
@@ -824,7 +911,7 @@ export default function RuntimeSceneViz({
                       // With no stack beside them, a trailing odd box takes the
                       // full row instead of half of it.
                       index === boxes.length - 1 &&
-                      stacks.length === 0 &&
+                      freeStacks.length === 0 &&
                       !hasEventLoop &&
                       boxes.length % 2 === 1
                         ? 'col-span-2'
@@ -836,7 +923,7 @@ export default function RuntimeSceneViz({
                   <EventLoopIndicator
                     checking={step.eventLoop === 'checking'}
                     stackBusy={stackBusy}
-                    beside={stacks.length > 0}
+                    beside={freeStacks.length > 0}
                   />
                 )}
               </div>

@@ -98,10 +98,6 @@ export function isLearningResource(value: unknown): value is LearningResource {
 export type VisualizationKind =
   | 'complexity'
   | 'bubble-sort'
-  | 'two-pointers'
-  | 'sliding-window'
-  | 'bfs-grid'
-  | 'dfs-grid'
   | 'concept-flow'
   | 'runtime-scene';
 
@@ -170,13 +166,26 @@ export interface ConceptFlowNarrative {
 /**
  * 'pipeline' regions render together as one ordered strip of stations, in
  * declaration order, so a token can travel from stage to stage.
+ *
+ * 'array' and 'grid' regions hold algorithm data: their per-step contents are
+ * `step.arrays` and `step.grids`, generated from the algorithm itself.
  */
 export type RuntimeSceneRegionKind =
   | 'stack'
   | 'queue'
   | 'box'
   | 'console'
-  | 'pipeline';
+  | 'pipeline'
+  | 'array'
+  | 'grid';
+
+/** Region kinds whose scenes are generated, so they may run many steps. */
+export const RUNTIME_SCENE_DATA_REGION_KINDS: readonly RuntimeSceneRegionKind[] =
+  ['array', 'grid'];
+
+/** Hand-written scenes stay short; generated algorithm traces may run longer. */
+export const RUNTIME_SCENE_MAX_STEPS = 12;
+export const RUNTIME_SCENE_MAX_GENERATED_STEPS = 80;
 export type RuntimeSceneRegionTone =
   | 'green'
   | 'red'
@@ -185,11 +194,82 @@ export type RuntimeSceneRegionTone =
   | 'teal';
 export type RuntimeSceneTokenTone = 'ok' | 'error' | 'muted';
 
+/** The fixed layout of a 'grid' region. Cell indexes are row-major. */
+export interface RuntimeSceneGridLayout {
+  rows: number;
+  cols: number;
+  walls: number[];
+  start: number;
+  goal: number;
+}
+
 export interface RuntimeSceneRegion {
   id: string;
   label: string;
   kind: RuntimeSceneRegionKind;
   tone: RuntimeSceneRegionTone;
+  /** Required for, and only allowed on, 'grid' regions. */
+  grid?: RuntimeSceneGridLayout;
+}
+
+export const RUNTIME_SCENE_CELL_STATES = [
+  'default',
+  'compare',
+  'swap',
+  'sorted',
+  'visited',
+  'frontier',
+  'current',
+  'path',
+] as const;
+export type RuntimeSceneCellState = (typeof RUNTIME_SCENE_CELL_STATES)[number];
+
+/**
+ * One value of an 'array' region. The id is stable across steps, so a cell
+ * that changes position animates there instead of being redrawn.
+ */
+export interface RuntimeSceneArrayCell {
+  id: string;
+  label: string;
+  state?: RuntimeSceneCellState;
+  /** Relative magnitude from 0 to 1, drawn as a small bar under the label. */
+  weight?: number;
+}
+
+export interface RuntimeSceneArrayPointer {
+  label: string;
+  index: number;
+}
+
+/** The contents of one 'array' region at one step, in display order. */
+export interface RuntimeSceneArrayView {
+  regionId: string;
+  cells: RuntimeSceneArrayCell[];
+  pointers?: RuntimeSceneArrayPointer[];
+  /** An inclusive highlighted span, e.g. the window or the sorted suffix. */
+  range?: { from: number; to: number; label?: string };
+}
+
+/** The contents of one 'grid' region at one step. */
+export interface RuntimeSceneGridView {
+  regionId: string;
+  /** One state per cell, row-major: `rows * cols` entries. */
+  cells: RuntimeSceneCellState[];
+  /** The found route from start to goal, in travel order. */
+  path?: number[];
+}
+
+/**
+ * A predict-first question asked while its step is on screen: the learner
+ * commits to what the next step will do before that step is revealed.
+ */
+export interface RuntimeSceneChallenge {
+  prompt: string;
+  options: string[];
+  /** Index into `options`. */
+  answer: number;
+  /** Why the answer holds, shown after a wrong pick. */
+  explanation: string;
 }
 
 export interface RuntimeSceneToken {
@@ -201,6 +281,12 @@ export interface RuntimeSceneToken {
   linkRegionId?: string;
   /** Completion from 0 to 1, drawn as a progress bar for in-flight work. */
   progress?: number;
+  /**
+   * A grid cell this token belongs to, as `{ regionId, index }`. A token whose
+   * own region is that grid is drawn inside the cell; a token elsewhere (the
+   * frontier queue or stack) flies in from the cell when it first appears.
+   */
+  cell?: { regionId: string; index: number };
 }
 
 export type RuntimeSceneActionTone = 'compare' | 'swap' | 'ok' | 'error';
@@ -237,6 +323,9 @@ export interface RuntimeSceneStep {
   /** 'checking' animates the event-loop indicator while it inspects the queues. */
   eventLoop?: 'idle' | 'checking';
   action?: RuntimeSceneAction;
+  arrays?: RuntimeSceneArrayView[];
+  grids?: RuntimeSceneGridView[];
+  challenge?: RuntimeSceneChallenge;
 }
 
 export interface RuntimeScene {

@@ -10,6 +10,15 @@ const player = readFileSync(
   'utf8',
 );
 
+const data = readFileSync(
+  new URL('./RuntimeSceneData.tsx', import.meta.url),
+  'utf8',
+);
+const challenge = readFileSync(
+  new URL('../lesson/PredictChallenge.tsx', import.meta.url),
+  'utf8',
+);
+
 describe('RuntimeSceneViz source contract', () => {
   it('moves tokens between HTML regions with shared layout animation', () => {
     expect(source).toContain('<LayoutGroup');
@@ -81,5 +90,48 @@ describe('RuntimeSceneViz source contract', () => {
   it('is wired through an explicit lesson player branch', () => {
     expect(player).toContain("visualizationKind === 'runtime-scene'");
     expect(player).toContain('<RuntimeSceneViz');
+  });
+
+  it('animates array cells by stable id and lifts the compared pair', () => {
+    expect(data).toContain('layoutId={`${region.id}:${cell.id}`}');
+    expect(data).toContain('y: lifted ? -LIFT : 0');
+    expect(data).toContain('data-comparator=');
+    expect(data).toContain(
+      'layoutId={`${region.id}:pointer:${pointer.label}`}',
+    );
+    expect(data).toContain('reduced ? INSTANT : MOVE');
+  });
+
+  it('keeps grid cells static and memoised, with one token in motion', () => {
+    expect(data).toContain('const GridCell = memo(');
+    expect(data).toContain('const ArrayCell = memo(');
+    const cell = data.slice(
+      data.indexOf('const GridCell = memo('),
+      data.indexOf('export function GridRegion'),
+    );
+    // Only the visiting token has a layoutId; the cell itself is plain CSS.
+    expect(cell.match(/layoutId=/g)).toHaveLength(1);
+    expect(cell).toContain('layoutId={tokenId}');
+    expect(cell).toContain("state === 'frontier' ? 'scene-frontier' : ''");
+    expect(data).toContain('{path.length > 1 && !reduced && (');
+  });
+
+  it('flies a discovered cell token from the grid into its frontier', () => {
+    expect(source).toContain('[data-grid-cell="${fliesIn.current}"]');
+    expect(source).toContain('isNew && !reduced && token.cell');
+    expect(source).toContain('<ArrayRegion');
+    expect(source).toContain('<GridRegion');
+  });
+
+  it('offers a predict-first challenge driven by the same steps', () => {
+    expect(player).toContain('<PredictChallenge');
+    expect(player).toContain('step.challenge');
+    expect(player).toContain("mode !== 'scene'");
+    expect(challenge).toContain('<RuntimeSceneViz');
+    expect(challenge).toContain("send({ type: 'PICK', option: index })");
+    // Answers are buttons with a touch-sized target, never drag-only.
+    expect(challenge).toContain('min-h-11');
+    expect(challenge).not.toContain('onDrag');
+    expect(challenge).toContain('sticky bottom-[calc(2.5rem+');
   });
 });

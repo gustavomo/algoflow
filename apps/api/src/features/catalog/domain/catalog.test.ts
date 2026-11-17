@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  RUNTIME_SCENE_MAX_GENERATED_STEPS,
+  RUNTIME_SCENE_MAX_STEPS,
+} from '@algoflow/contracts';
+import {
   assessments,
   learningPaths,
   lessons,
@@ -9,6 +13,9 @@ import {
   validateLearningPathResources,
   validateRuntimeScene,
 } from './catalog';
+
+const scene = (slug: string) =>
+  lessons.find((item) => item.slug === slug)!.runtimeScene!;
 
 describe('catalog', () => {
   it('contains the approved seed curriculum with valid references', () => {
@@ -118,7 +125,11 @@ describe('catalog', () => {
     const scenes = lessons.flatMap((item) =>
       item.runtimeScene ? [item.runtimeScene] : [],
     );
-    expect(scenes).toHaveLength(8);
+    // 8 hand-written runtime scenes plus the 5 generated algorithm scenes.
+    expect(scenes).toHaveLength(13);
+    expect(
+      lessons.filter((item) => item.visualization === 'runtime-scene'),
+    ).toHaveLength(12);
     for (const scene of scenes) {
       const captioned = scene.steps.filter((step) => step.action);
       expect(captioned.length).toBeGreaterThanOrEqual(scene.steps.length - 3);
@@ -233,6 +244,114 @@ describe('catalog', () => {
           step.output.slice(0, scene.steps[index - 1].output.length),
         ).toEqual(scene.steps[index - 1].output);
     });
+  });
+
+  it('allows long traces only for scenes with array or grid regions', () => {
+    const authored = structuredClone(scene('javascript-execution-model'));
+    while (authored.steps.length <= RUNTIME_SCENE_MAX_STEPS)
+      authored.steps.push(structuredClone(authored.steps[0]));
+    expect(validateRuntimeScene('demo', authored).join(' ')).toMatch(
+      /runtime scene has 13 steps, limit is 12/,
+    );
+
+    const generated = structuredClone(scene('bubble-sort-js'));
+    expect(generated.steps.length).toBeGreaterThan(RUNTIME_SCENE_MAX_STEPS);
+    expect(validateRuntimeScene('demo', generated)).toEqual([]);
+    while (generated.steps.length <= RUNTIME_SCENE_MAX_GENERATED_STEPS)
+      generated.steps.push(structuredClone(generated.steps[0]));
+    expect(validateRuntimeScene('demo', generated).join(' ')).toMatch(
+      /runtime scene has 81 steps, limit is 80/,
+    );
+  });
+
+  it('rejects malformed array views', () => {
+    const broken = structuredClone(scene('two-pointers-js'));
+    const view = (index: number) => broken.steps[index].arrays![0];
+    view(0).pointers![0].index = 99;
+    view(1).range = { from: 4, to: 2 };
+    view(2).cells[0].state = 'glowing' as never;
+    view(3).cells[1].id = view(3).cells[0].id;
+    view(4).cells[0].id = 'intruder';
+    view(5).cells[0].weight = 2;
+    broken.steps[6].arrays = [];
+    broken.steps[7].tokens.push({ id: 'stray', label: 'x', regionId: 'a' });
+
+    const errors = validateRuntimeScene('demo', broken).join(' | ');
+    expect(errors).toMatch(/step 1 array a pointer L out of range/);
+    expect(errors).toMatch(/step 2 array a range out of bounds/);
+    expect(errors).toMatch(/step 3 array a unknown cell state glowing/);
+    expect(errors).toMatch(/step 4 array a duplicate cell v0/);
+    expect(errors).toMatch(/step 5 array a cell ids changed between steps/);
+    expect(errors).toMatch(/step 6 array a cell v0 weight out of range/);
+    expect(errors).toMatch(/step 7 missing array view a/);
+    expect(errors).toMatch(/step 8 token stray cannot sit in array a/);
+  });
+
+  it('rejects malformed grid layouts, views, paths and cell tokens', () => {
+    const broken = structuredClone(scene('bfs-grid-go'));
+    const wall = broken.regions[0].grid!.walls[0];
+    broken.steps[0].grids![0].cells.pop();
+    broken.steps[1].grids![0].cells[wall] = 'visited';
+    broken.steps[2].grids![0].cells[0] = 'lava' as never;
+    broken.steps[3].tokens[0].cell = { regionId: 'grid', index: wall };
+    broken.steps[4].grids = [];
+    broken.steps[5].grids![0].path = [0, 2, 35];
+    broken.steps[6].tokens.push({ id: 'lost', label: '?', regionId: 'grid' });
+    broken.steps[7].grids![0].regionId = 'frontier';
+
+    const errors = validateRuntimeScene('demo', broken).join(' | ');
+    expect(errors).toMatch(/step 1 grid grid expects 36 cells, has 35/);
+    expect(errors).toMatch(/step 2 grid grid wall 8 cannot have a state/);
+    expect(errors).toMatch(/step 3 grid grid unknown cell state lava/);
+    expect(errors).toMatch(/step 4 token c\d+ points at an invalid grid cell/);
+    expect(errors).toMatch(/step 5 missing grid view grid/);
+    expect(errors).toMatch(/step 6 grid grid path must walk open cells/);
+    expect(errors).toMatch(/step 7 token lost needs a cell in grid grid/);
+    expect(errors).toMatch(/step 8 grid frontier is not a grid region/);
+
+    const layout = structuredClone(scene('bfs-grid-go'));
+    layout.regions[0].grid!.goal = layout.regions[0].grid!.walls[0];
+    layout.regions[0].grid!.walls.push(99);
+    layout.regions[1].grid = structuredClone(layout.regions[0].grid);
+    const layoutErrors = validateRuntimeScene('demo', layout).join(' | ');
+    expect(layoutErrors).toMatch(/region grid wall out of range/);
+    expect(layoutErrors).toMatch(/region grid goal must be an open cell/);
+    expect(layoutErrors).toMatch(/region frontier is not a grid but has/);
+    delete layout.regions[0].grid;
+    expect(validateRuntimeScene('demo', layout).join(' | ')).toMatch(
+      /region grid needs a grid layout/,
+    );
+  });
+
+  it('rejects malformed predict-first challenges', () => {
+    const broken = structuredClone(scene('bubble-sort-js'));
+    const asked = broken.steps.flatMap((step, index) =>
+      step.challenge ? [index] : [],
+    );
+    broken.steps[asked[0]].challenge!.answer = 2;
+    broken.steps[asked[1]].challenge!.options = ['Only one'];
+    broken.steps[asked[2]].challenge!.options = ['Same', 'Same'];
+    broken.steps[asked[3]].challenge!.prompt = ' ';
+    broken.steps.at(-1)!.challenge = structuredClone(
+      broken.steps[asked[4]].challenge,
+    );
+
+    const errors = validateRuntimeScene('demo', broken).join(' | ');
+    expect(errors).toMatch(
+      new RegExp(`step ${asked[0] + 1} challenge answer out of range`),
+    );
+    expect(errors).toMatch(
+      new RegExp(`step ${asked[1] + 1} challenge needs 2 to 4 options`),
+    );
+    expect(errors).toMatch(
+      new RegExp(`step ${asked[2] + 1} challenge options must be distinct`),
+    );
+    expect(errors).toMatch(
+      new RegExp(`step ${asked[3] + 1} challenge needs a prompt`),
+    );
+    expect(errors).toMatch(
+      new RegExp(`step ${broken.steps.length} final step cannot ask`),
+    );
   });
 
   it('rejects malformed, insecure, and duplicate resource metadata', () => {

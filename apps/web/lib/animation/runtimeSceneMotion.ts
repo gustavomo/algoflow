@@ -1,6 +1,7 @@
 import type { Transition } from 'framer-motion';
 
 export const INSTANT: Transition = { duration: 0 };
+export const MOVE: Transition = { type: 'spring', stiffness: 240, damping: 26 };
 
 /**
  * Exit variant for a runtime-scene token. framer-motion calls variant

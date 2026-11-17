@@ -15,8 +15,19 @@ import type {
 import {
   RUNTIME_SCENE_ACTION_MAX_LENGTH,
   RUNTIME_SCENE_ACTION_TONES,
+  RUNTIME_SCENE_CELL_STATES,
+  RUNTIME_SCENE_DATA_REGION_KINDS,
+  RUNTIME_SCENE_MAX_GENERATED_STEPS,
+  RUNTIME_SCENE_MAX_STEPS,
   isLearningResource,
 } from '@algoflow/contracts';
+import {
+  bfsRuntimeScene,
+  bubbleSortRuntimeScene,
+  dfsRuntimeScene,
+  slidingWindowRuntimeScene,
+  twoPointersRuntimeScene,
+} from './algorithmScenes';
 import {
   asyncRuntimeScene,
   closuresRuntimeScene,
@@ -620,8 +631,11 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'sorting',
     conceptIds: ['adjacent-comparison', 'sorting-invariant'],
     estimatedMinutes: 18,
+    // Keeps its own kind: besides the scene and its predict-first challenge,
+    // the player offers the hands-on tutor lab that only this lesson has.
     visualization: 'bubble-sort',
     codeLanguage: 'javascript',
+    runtimeScene: bubbleSortRuntimeScene,
     assessmentSlug: 'bubble-sort-checkpoint',
     prerequisites: ['complexity-basics-js'],
   },
@@ -635,8 +649,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'array-patterns',
     conceptIds: ['pointer-invariant', 'linear-scan'],
     estimatedMinutes: 16,
-    visualization: 'two-pointers',
+    visualization: 'runtime-scene',
     codeLanguage: 'javascript',
+    runtimeScene: twoPointersRuntimeScene,
     assessmentSlug: 'two-pointers-checkpoint',
     prerequisites: ['complexity-basics-js'],
   },
@@ -650,8 +665,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'array-patterns',
     conceptIds: ['window-invariant', 'incremental-state'],
     estimatedMinutes: 20,
-    visualization: 'sliding-window',
+    visualization: 'runtime-scene',
     codeLanguage: 'typescript',
+    runtimeScene: slidingWindowRuntimeScene,
     assessmentSlug: 'sliding-window-checkpoint',
     prerequisites: ['two-pointers-js'],
   },
@@ -665,8 +681,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'graphs',
     conceptIds: ['queue-frontier', 'visited-set'],
     estimatedMinutes: 22,
-    visualization: 'bfs-grid',
+    visualization: 'runtime-scene',
     codeLanguage: 'go',
+    runtimeScene: bfsRuntimeScene,
     assessmentSlug: 'bfs-grid-checkpoint',
     prerequisites: ['complexity-basics-js'],
   },
@@ -680,8 +697,9 @@ export const lessons: LessonDefinition[] = [
     topicSlug: 'graphs',
     conceptIds: ['stack-frontier', 'visited-set'],
     estimatedMinutes: 20,
-    visualization: 'dfs-grid',
+    visualization: 'runtime-scene',
     codeLanguage: 'go',
+    runtimeScene: dfsRuntimeScene,
     assessmentSlug: 'dfs-grid-checkpoint',
     prerequisites: ['bfs-grid-go'],
   },
@@ -3260,17 +3278,74 @@ export function validateLearningPathResources(item: LearningPathDefinition) {
   return Array.from(new Set(errors));
 }
 
+const isIndex = (value: unknown, length: number): value is number =>
+  Number.isInteger(value) &&
+  (value as number) >= 0 &&
+  (value as number) < length;
+
 export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
   const errors: string[] = [];
   const regionIds = new Set(scene.regions.map((region) => region.id));
+  const regionById = new Map(
+    scene.regions.map((region) => [region.id, region]),
+  );
   for (const duplicate of duplicates(scene.regions.map((region) => region.id)))
     errors.push(`${slug}: duplicate runtime region ${duplicate}`);
   if (scene.steps.length === 0) errors.push(`${slug}: empty runtime scene`);
+  // Only generated algorithm traces (array/grid scenes) may run long.
+  const generated = scene.regions.some((region) =>
+    RUNTIME_SCENE_DATA_REGION_KINDS.includes(region.kind),
+  );
+  const maxSteps = generated
+    ? RUNTIME_SCENE_MAX_GENERATED_STEPS
+    : RUNTIME_SCENE_MAX_STEPS;
+  if (scene.steps.length > maxSteps)
+    errors.push(
+      `${slug}: runtime scene has ${scene.steps.length} steps, limit is ${maxSteps}`,
+    );
   if (
     scene.complexity &&
     !(scene.complexity.time?.trim() && scene.complexity.space?.trim())
   )
     errors.push(`${slug}: runtime complexity needs time and space`);
+  for (const region of scene.regions) {
+    const at = `${slug}: runtime region ${region.id}`;
+    if (region.kind !== 'grid') {
+      if (region.grid) errors.push(`${at} is not a grid but has a grid layout`);
+      continue;
+    }
+    const layout = region.grid;
+    if (!layout) {
+      errors.push(`${at} needs a grid layout`);
+      continue;
+    }
+    const size = layout.rows * layout.cols;
+    if (
+      !Number.isInteger(layout.rows) ||
+      !Number.isInteger(layout.cols) ||
+      layout.rows < 1 ||
+      layout.cols < 1 ||
+      layout.rows > 8 ||
+      layout.cols > 8
+    ) {
+      errors.push(`${at} grid must be between 1x1 and 8x8`);
+      continue;
+    }
+    if (layout.walls.some((wall) => !isIndex(wall, size)))
+      errors.push(`${at} wall out of range`);
+    if (new Set(layout.walls).size !== layout.walls.length)
+      errors.push(`${at} duplicate wall`);
+    for (const [name, index] of [
+      ['start', layout.start],
+      ['goal', layout.goal],
+    ] as const)
+      if (!isIndex(index, size) || layout.walls.includes(index))
+        errors.push(`${at} ${name} must be an open cell`);
+    if (layout.start === layout.goal)
+      errors.push(`${at} start and goal must differ`);
+  }
+  // Array cells are tokens with stable ids: every step shows the same set.
+  const arrayCellIds = new Map<string, string>();
   scene.steps.forEach((step, index) => {
     const at = `${slug}: runtime step ${index + 1}`;
     if (step.action) {
@@ -3301,12 +3376,154 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
     ])
       if (!regionIds.has(regionId))
         errors.push(`${at} unknown region ${regionId}`);
-    for (const token of step.tokens)
+    for (const token of step.tokens) {
       if (
         token.progress !== undefined &&
         !(token.progress >= 0 && token.progress <= 1)
       )
         errors.push(`${at} token ${token.id} progress out of range`);
+      const home = regionById.get(token.regionId);
+      // An array is drawn from `step.arrays`; it cannot also hold tokens.
+      if (home?.kind === 'array')
+        errors.push(`${at} token ${token.id} cannot sit in array ${home.id}`);
+      if (home?.kind === 'grid' && token.cell?.regionId !== home.id)
+        errors.push(`${at} token ${token.id} needs a cell in grid ${home.id}`);
+      if (token.cell) {
+        const layout = regionById.get(token.cell.regionId)?.grid;
+        if (
+          !layout ||
+          !isIndex(token.cell.index, layout.rows * layout.cols) ||
+          layout.walls.includes(token.cell.index)
+        )
+          errors.push(`${at} token ${token.id} points at an invalid grid cell`);
+      }
+    }
+
+    const arrays = step.arrays ?? [];
+    const grids = step.grids ?? [];
+    for (const duplicate of duplicates([
+      ...arrays.map((view) => view.regionId),
+      ...grids.map((view) => view.regionId),
+    ]))
+      errors.push(`${at} duplicate view of region ${duplicate}`);
+    // A data region is redrawn from its view, so no step may leave it blank.
+    for (const region of scene.regions) {
+      if (
+        region.kind === 'array' &&
+        !arrays.some((view) => view.regionId === region.id)
+      )
+        errors.push(`${at} missing array view ${region.id}`);
+      if (
+        region.kind === 'grid' &&
+        !grids.some((view) => view.regionId === region.id)
+      )
+        errors.push(`${at} missing grid view ${region.id}`);
+    }
+    for (const view of arrays) {
+      const where = `${at} array ${view.regionId}`;
+      if (regionById.get(view.regionId)?.kind !== 'array') {
+        errors.push(`${where} is not an array region`);
+        continue;
+      }
+      const ids = view.cells.map((cell) => cell.id);
+      for (const duplicate of duplicates(ids))
+        errors.push(`${where} duplicate cell ${duplicate}`);
+      const signature = [...ids].sort().join(' ');
+      if (!arrayCellIds.has(view.regionId))
+        arrayCellIds.set(view.regionId, signature);
+      else if (arrayCellIds.get(view.regionId) !== signature)
+        errors.push(`${where} cell ids changed between steps`);
+      for (const cell of view.cells) {
+        if (
+          cell.state !== undefined &&
+          !RUNTIME_SCENE_CELL_STATES.includes(cell.state)
+        )
+          errors.push(`${where} unknown cell state ${cell.state}`);
+        if (
+          cell.weight !== undefined &&
+          !(cell.weight >= 0 && cell.weight <= 1)
+        )
+          errors.push(`${where} cell ${cell.id} weight out of range`);
+      }
+      for (const pointer of view.pointers ?? []) {
+        if (!pointer.label?.trim()) errors.push(`${where} unlabelled pointer`);
+        if (!isIndex(pointer.index, view.cells.length))
+          errors.push(`${where} pointer ${pointer.label} out of range`);
+      }
+      for (const duplicate of duplicates(
+        (view.pointers ?? []).map((pointer) => pointer.label),
+      ))
+        errors.push(`${where} duplicate pointer ${duplicate}`);
+      if (
+        view.range &&
+        !(
+          isIndex(view.range.from, view.cells.length) &&
+          isIndex(view.range.to, view.cells.length) &&
+          view.range.from <= view.range.to
+        )
+      )
+        errors.push(`${where} range out of bounds`);
+    }
+    for (const view of grids) {
+      const where = `${at} grid ${view.regionId}`;
+      const layout = regionById.get(view.regionId)?.grid;
+      if (regionById.get(view.regionId)?.kind !== 'grid' || !layout) {
+        errors.push(`${where} is not a grid region`);
+        continue;
+      }
+      const size = layout.rows * layout.cols;
+      if (view.cells.length !== size)
+        errors.push(`${where} expects ${size} cells, has ${view.cells.length}`);
+      view.cells.forEach((state, cell) => {
+        if (!RUNTIME_SCENE_CELL_STATES.includes(state))
+          errors.push(`${where} unknown cell state ${state}`);
+        else if (state !== 'default' && layout.walls.includes(cell))
+          errors.push(`${where} wall ${cell} cannot have a state`);
+      });
+      if (view.path) {
+        const path = view.path;
+        const connected = path.every((cell, position) => {
+          if (!isIndex(cell, size) || layout.walls.includes(cell)) return false;
+          if (position === 0) return true;
+          const previous = path[position - 1];
+          const rowGap = Math.abs(
+            Math.floor(cell / layout.cols) - Math.floor(previous / layout.cols),
+          );
+          const colGap = Math.abs(
+            (cell % layout.cols) - (previous % layout.cols),
+          );
+          return rowGap + colGap === 1;
+        });
+        if (
+          !connected ||
+          path[0] !== layout.start ||
+          path[path.length - 1] !== layout.goal
+        )
+          errors.push(`${where} path must walk open cells from start to goal`);
+      }
+    }
+
+    if (step.challenge) {
+      const { prompt, options, answer, explanation } = step.challenge;
+      // A challenge predicts the next step, so the last step cannot ask one.
+      if (index === scene.steps.length - 1)
+        errors.push(`${at} final step cannot ask a challenge`);
+      if (!prompt?.trim() || !explanation?.trim())
+        errors.push(`${at} challenge needs a prompt and an explanation`);
+      if (
+        !Array.isArray(options) ||
+        options.length < 2 ||
+        options.length > 4 ||
+        options.some((option) => !option?.trim())
+      )
+        errors.push(`${at} challenge needs 2 to 4 options`);
+      else {
+        if (new Set(options).size !== options.length)
+          errors.push(`${at} challenge options must be distinct`);
+        if (!isIndex(answer, options.length))
+          errors.push(`${at} challenge answer out of range`);
+      }
+    }
   });
   return errors;
 }
