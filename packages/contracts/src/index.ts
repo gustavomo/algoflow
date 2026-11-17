@@ -203,6 +203,28 @@ export interface RuntimeSceneToken {
   progress?: number;
 }
 
+export type RuntimeSceneActionTone = 'compare' | 'swap' | 'ok' | 'error';
+
+export const RUNTIME_SCENE_ACTION_TONES: readonly RuntimeSceneActionTone[] = [
+  'compare',
+  'swap',
+  'ok',
+  'error',
+];
+
+/** Longest action caption that still fits on two lines of a phone screen. */
+export const RUNTIME_SCENE_ACTION_MAX_LENGTH = 64;
+
+/**
+ * A short caption of the live operation with its real values, e.g.
+ * `guard.canActivate() → false → 403`. It is decorative: the narration stays
+ * the accessible description of the step.
+ */
+export interface RuntimeSceneAction {
+  text: string;
+  tone?: RuntimeSceneActionTone;
+}
+
 /** A full snapshot of the runtime, so seeking to any step is a direct lookup. */
 export interface RuntimeSceneStep {
   label: string;
@@ -214,10 +236,13 @@ export interface RuntimeSceneStep {
   activeRegionIds?: string[];
   /** 'checking' animates the event-loop indicator while it inspects the queues. */
   eventLoop?: 'idle' | 'checking';
+  action?: RuntimeSceneAction;
 }
 
 export interface RuntimeScene {
   code: { language: string; lines: string[] };
+  /** Cost of what the scene runs, shown as header chips, e.g. `O(n²)`. */
+  complexity?: { time: string; space: string };
   regions: RuntimeSceneRegion[];
   steps: RuntimeSceneStep[];
 }

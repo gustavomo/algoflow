@@ -1,5 +1,6 @@
 import type {
   RuntimeScene,
+  RuntimeSceneActionTone,
   RuntimeSceneRegion,
   RuntimeSceneStep,
   RuntimeSceneToken,
@@ -37,6 +38,31 @@ const step = (
   output,
   activeRegionIds,
 });
+
+type ActionCaption = [text: string, tone: RuntimeSceneActionTone] | null;
+
+/**
+ * Attaches one action caption per step, in step order. `null` leaves a step
+ * without a caption, for steps that only frame or summarise.
+ */
+export function withActions(
+  scene: RuntimeScene,
+  captions: ActionCaption[],
+): RuntimeScene {
+  if (captions.length !== scene.steps.length)
+    throw new Error(
+      `Expected ${scene.steps.length} action captions, received ${captions.length}`,
+    );
+  return {
+    ...scene,
+    steps: scene.steps.map((item, index) => {
+      const caption = captions[index];
+      return caption
+        ? { ...item, action: { text: caption[0], tone: caption[1] } }
+        : item;
+    }),
+  };
+}
 
 const range = (from: number, to: number) =>
   Array.from({ length: to - from + 1 }, (_, index) => from + index);
@@ -1087,10 +1113,99 @@ function nestPipelineScene(): RuntimeScene {
   };
 }
 
-export const closuresRuntimeScene = closuresScene();
-export const asyncRuntimeScene = asyncScene();
-export const narrowingRuntimeScene = narrowingScene();
-export const genericsRuntimeScene = genericsScene();
-export const negativeSpaceRuntimeScene = negativeSpaceScene();
-export const decoratorsRuntimeScene = decoratorsScene();
-export const nestPipelineRuntimeScene = nestPipelineScene();
+export const closuresRuntimeScene = withActions(closuresScene(), [
+  ['createCounter: ƒ → global scope', 'swap'],
+  ['createCounter() → scope #1 { count = 0 }', 'swap'],
+  ['increment, current → keep scope #1', 'compare'],
+  ['frame popped · scope #1 kept alive by a', 'ok'],
+  ['createCounter(10) → scope #2 { count = 10 }', 'swap'],
+  ['a → scope #1 · b → scope #2', 'compare'],
+  ['++count → scope #1: 0 → 1', 'swap'],
+  ['++count → scope #1: 1 → 2', 'swap'],
+  ['a.current() = 2 · b.current() = 10', 'ok'],
+  null,
+]);
+export const asyncRuntimeScene: RuntimeScene = {
+  ...withActions(asyncScene(), [
+    null,
+    ['await loadUser(1) … 2 and 3 not started', 'compare'],
+    ['user 1 ✓ @100 ms → start loadUser(2)', 'swap'],
+    ['user 2 ✓ @200 ms → start loadUser(3)', 'swap'],
+    ['100 + 100 + 100 = 300 ms', 'ok'],
+    ['start 1, 2, 3 together → await once', 'swap'],
+    ['max(100, 100, 100) = 100 ms', 'ok'],
+    ['loadUser(2) ✗ HTTP 500 @40 ms → all rejects', 'error'],
+    ['allSettled → [✓, ✗, ✓] @100 ms', 'ok'],
+    ['await fetch(url, { signal }) … 99 ms', 'compare'],
+    ['signal @100 ms → abort → TimeoutError', 'error'],
+    null,
+  ]),
+  // Sequential awaits cost the sum; concurrent ones cost the slowest.
+  complexity: { time: 'Σ tᵢ → max tᵢ', space: 'O(n)' },
+};
+export const narrowingRuntimeScene = withActions(narrowingScene(), [
+  null,
+  ['result: ok | error | loading', 'compare'],
+  ["status === 'ok' ? → { status: 'ok'; data }", 'ok'],
+  ["status === 'error' ? → { …; message }", 'ok'],
+  ["status === 'loading' ? → last member", 'ok'],
+  ['3 members − 3 cases = never', 'ok'],
+  ["Result += { status: 'cancelled' }", 'swap'],
+  ["'cancelled' → assertNever ✗ TS2345", 'error'],
+  ['4 members − 4 cases = never', 'ok'],
+  null,
+]);
+export const genericsRuntimeScene = withActions(genericsScene(), [
+  ['getProperty<T = ?, K = ?>', 'compare'],
+  ["getProperty(user, 'id') → infer T, K", 'compare'],
+  ['T = { id: number; name: string }', 'ok'],
+  ["keyof T = 'id' | 'name'", 'compare'],
+  ["'id' extends keyof T ? → K = 'id'", 'ok'],
+  ["T['id'] → number", 'ok'],
+  ["K = 'name' → T['name'] → string", 'ok'],
+  ["'email' extends keyof T ?", 'compare'],
+  ["'email' ∉ 'id' | 'name' → TS2345", 'error'],
+  null,
+]);
+export const negativeSpaceRuntimeScene = withActions(negativeSpaceScene(), [
+  ['withdraw(balance = 100, amount = 30)', 'compare'],
+  ['isInteger(30) && 30 > 0 ? → pass', 'ok'],
+  ['30 <= 100 ? → pass', 'ok'],
+  ['next = 100 - 30 = 70', 'swap'],
+  ['70 >= 0 ? → pass', 'ok'],
+  ['return 70 → balance = 70', 'ok'],
+  ['withdraw(balance = 70, amount = 130)', 'compare'],
+  ['130 <= 70 ? → false → throw', 'error'],
+  ['no asserts: next = 70 - 130 = -60', 'error'],
+  ['return -60 → balance = -60', 'error'],
+  ['-60 → statement, replica, backup', 'error'],
+  ['-60 >= 0 ? → false → throw', 'error'],
+]);
+export const decoratorsRuntimeScene = withActions(decoratorsScene(), [
+  ['log(memoize(retry(fetchRate)))', 'compare'],
+  ["@log before → fetchRate('EUR')", 'swap'],
+  ["cache.has('EUR') ? → miss → proceed", 'compare'],
+  ['@retry → attempt 1 of 3', 'swap'],
+  ["await requestRate('EUR') …", 'compare'],
+  ["cache.set('EUR', Promise ⟨pending⟩)", 'swap'],
+  ['@log after → Promise ⟨pending⟩', 'compare'],
+  ['attempt 1 → HTTP 503 → catch → retry', 'error'],
+  ['attempt 2 → 1.08', 'ok'],
+  ['await ⟨pending⟩ → 1.08', 'ok'],
+  ["cache.has('EUR') ? → hit → return", 'ok'],
+  ['@retry, fetchRate skipped → 1.08', 'ok'],
+]);
+export const nestPipelineRuntimeScene = withActions(nestPipelineScene(), [
+  ['POST /orders { sku: "A-1", quantity: 2 }', 'compare'],
+  ['middleware → req + x-request-id', 'swap'],
+  ['guard.canActivate() → true', 'ok'],
+  ['start = now() → next.handle()', 'swap'],
+  ['pipe.transform(body) → CreateOrderDto ✓', 'ok'],
+  ['create(dto) → { id, sku, quantity }', 'ok'],
+  ["tap → 'create took 3ms'", 'ok'],
+  ['return → 201 Created', 'ok'],
+  ['pipe.transform({ quantity: 0 }) → throw 400', 'error'],
+  ['filter.catch(400) → { statusCode: 400 }', 'error'],
+  ['guard.canActivate() → false → 403', 'error'],
+  ['filter.catch(403) → { statusCode: 403 }', 'error'],
+]);

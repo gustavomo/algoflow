@@ -95,6 +95,41 @@ describe('catalog', () => {
     expect(errors).toMatch(/runtime step 4 unknown region nowhere/);
   });
 
+  it('rejects invalid action captions and complexity chips', () => {
+    const scene = structuredClone(
+      lessons.find((item) => item.slug === 'javascript-execution-model')!
+        .runtimeScene!,
+    );
+    scene.steps[0].action = { text: '  ' };
+    scene.steps[1].action = { text: 'x'.repeat(65) };
+    scene.steps[2].action = { text: 'a > b ?', tone: 'loud' as never };
+    scene.steps[3].action = undefined;
+    scene.complexity = { time: 'O(n)', space: '' };
+
+    const errors = validateRuntimeScene('demo', scene).join(' ');
+    expect(errors).toMatch(/runtime step 1 empty action caption/);
+    expect(errors).toMatch(/runtime step 2 action caption too long/);
+    expect(errors).toMatch(/runtime step 3 unknown action tone loud/);
+    expect(errors).not.toMatch(/runtime step 4/);
+    expect(errors).toMatch(/runtime complexity needs time and space/);
+  });
+
+  it('captions the live operation in every runtime scene', () => {
+    const scenes = lessons.flatMap((item) =>
+      item.runtimeScene ? [item.runtimeScene] : [],
+    );
+    expect(scenes).toHaveLength(8);
+    for (const scene of scenes) {
+      const captioned = scene.steps.filter((step) => step.action);
+      expect(captioned.length).toBeGreaterThanOrEqual(scene.steps.length - 3);
+      for (const step of captioned) expect(step.action!.tone).toBeTruthy();
+    }
+    expect(
+      lessons.find((item) => item.slug === 'javascript-async-patterns')
+        ?.runtimeScene?.complexity,
+    ).toEqual({ time: expect.any(String), space: 'O(n)' });
+  });
+
   it('rejects runtime tokens with unknown links or invalid progress', () => {
     const scene = structuredClone(
       lessons.find((item) => item.slug === 'javascript-closures-scope')!

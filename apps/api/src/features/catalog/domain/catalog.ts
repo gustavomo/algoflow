@@ -12,7 +12,11 @@ import type {
   TopicDefinition,
   VisualSceneKind,
 } from '@algoflow/contracts';
-import { isLearningResource } from '@algoflow/contracts';
+import {
+  RUNTIME_SCENE_ACTION_MAX_LENGTH,
+  RUNTIME_SCENE_ACTION_TONES,
+  isLearningResource,
+} from '@algoflow/contracts';
 import {
   asyncRuntimeScene,
   closuresRuntimeScene,
@@ -21,6 +25,7 @@ import {
   narrowingRuntimeScene,
   negativeSpaceRuntimeScene,
   nestPipelineRuntimeScene,
+  withActions,
 } from './runtimeScenes';
 import {
   buildAssessmentCatalog,
@@ -357,7 +362,7 @@ function conceptFlow(
   };
 }
 
-const eventLoopScene: RuntimeScene = {
+const eventLoopSteps: RuntimeScene = {
   code: {
     language: 'javascript',
     lines: [
@@ -575,6 +580,19 @@ const eventLoopScene: RuntimeScene = {
     },
   ],
 };
+
+const eventLoopScene = withActions(eventLoopSteps, [
+  ['push script → call stack', 'swap'],
+  ["log('Start') → prints now", 'ok'],
+  ['setTimeout(cb, 0) → Web API timer', 'swap'],
+  ['timer 0 ms done → task queue', 'swap'],
+  ['.then(cb) → microtask queue', 'swap'],
+  ["log('End') → prints now", 'ok'],
+  ['stack empty ? → microtasks first', 'compare'],
+  ["microtask → log('Promise')", 'ok'],
+  ["task → log('Timeout')", 'ok'],
+  ['Start, End, Promise, Timeout', 'ok'],
+]);
 
 export const lessons: LessonDefinition[] = [
   {
@@ -3248,8 +3266,25 @@ export function validateRuntimeScene(slug: string, scene: RuntimeScene) {
   for (const duplicate of duplicates(scene.regions.map((region) => region.id)))
     errors.push(`${slug}: duplicate runtime region ${duplicate}`);
   if (scene.steps.length === 0) errors.push(`${slug}: empty runtime scene`);
+  if (
+    scene.complexity &&
+    !(scene.complexity.time?.trim() && scene.complexity.space?.trim())
+  )
+    errors.push(`${slug}: runtime complexity needs time and space`);
   scene.steps.forEach((step, index) => {
     const at = `${slug}: runtime step ${index + 1}`;
+    if (step.action) {
+      const text = step.action.text;
+      if (typeof text !== 'string' || !text.trim())
+        errors.push(`${at} empty action caption`);
+      else if (text.length > RUNTIME_SCENE_ACTION_MAX_LENGTH)
+        errors.push(`${at} action caption too long`);
+      if (
+        step.action.tone !== undefined &&
+        !RUNTIME_SCENE_ACTION_TONES.includes(step.action.tone)
+      )
+        errors.push(`${at} unknown action tone ${step.action.tone}`);
+    }
     for (const line of step.codeLines)
       if (
         !Number.isInteger(line) ||
