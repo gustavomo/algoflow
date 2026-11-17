@@ -44,6 +44,40 @@ describe('RuntimeSceneViz source contract', () => {
     expect(source).toContain('motion-reduce:animate-none');
   });
 
+  it('soft-wraps code on phones and measures the band from real rows', () => {
+    expect(source).toContain('whitespace-pre-wrap');
+    expect(source).toContain('sm:whitespace-pre');
+    expect(source).toContain('from.offsetTop');
+  });
+
+  it('keeps the active pipeline station in view by scrolling the strip', () => {
+    expect(source).toContain('data-pipeline-scroller');
+    expect(source).toContain('layoutScroll');
+    expect(source).toContain('scroller.scrollTo(');
+  });
+
+  it('renders the action caption as decoration between scene and code', () => {
+    const caption = source.slice(source.indexOf('function ActionCaption'));
+    expect(caption).toContain('aria-hidden');
+    expect(caption).toContain('order-2');
+    expect(source).toContain('className="order-3 sm:order-2"');
+    expect(source).toContain('order-1 grid gap-2 sm:order-4');
+  });
+
+  it('marks the final step, statically under reduced motion', () => {
+    expect(source).toContain('{isFinal && <CompletionSweep');
+    expect(source).toContain("data-completion={reduced ? 'static' : 'sweep'}");
+    expect(source).toContain('{!reduced && (');
+  });
+
+  it('docks the controls above the mobile navigation', () => {
+    expect(player).toContain('sticky bottom-[calc(2.5rem+');
+    expect(player).toContain('sm:bottom-0');
+    expect(player).toContain(
+      '<PlaybackBar state={state} send={send} docked />',
+    );
+  });
+
   it('is wired through an explicit lesson player branch', () => {
     expect(player).toContain("visualizationKind === 'runtime-scene'");
     expect(player).toContain('<RuntimeSceneViz');

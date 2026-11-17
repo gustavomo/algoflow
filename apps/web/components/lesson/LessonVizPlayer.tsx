@@ -200,9 +200,11 @@ export default function LessonVizPlayer({
     <div>
       {visualization}
       {visualizationKind === 'runtime-scene' ? (
-        // Tall scenes scroll inside the sticky player; keep the controls in view.
-        <div className="xl:sticky xl:bottom-0 xl:bg-canvas xl:pb-1">
-          <PlaybackBar state={state} send={send} />
+        // Scenes are taller than a phone screen and scroll inside the sticky
+        // desktop player: dock the controls so they stay in reach. On phones
+        // the dock sits just above AppShell's fixed mobile navigation.
+        <div className="sticky bottom-[calc(2.5rem+max(.45rem,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t border-line bg-canvas px-4 pb-2 sm:bottom-0 sm:mx-0 sm:border-t-0 sm:px-0 sm:pb-1">
+          <PlaybackBar state={state} send={send} docked />
         </div>
       ) : (
         <PlaybackBar state={state} send={send} />
