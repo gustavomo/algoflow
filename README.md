@@ -8,7 +8,6 @@ AlgoFlow is a personal software-engineering learning workspace with animated les
 - Five-to-seven staged modules per path, with optional primary resources that never enter local RAG automatically
 - Roadmaps for software engineering, JavaScript, Go, patterns, System Design, networking/CDNs, databases, PostgreSQL, MySQL, Docker, Kubernetes, AWS, mathematics, AI/ML/deep learning, agentic engineering, English, technical reading, learning how to learn, and Staff Engineering
 - SVG and Framer Motion visualizations for Bubble Sort, pointer patterns, complexity, and reusable concept flows
-- Optional PixiJS scaffold for grid traversal scenes
 - XState playback with play, pause, seek, step, speed, keyboard controls, and reduced-motion support
 - Monaco code editor loaded only in the browser
 - Deterministic assessments that create concept-level review items
