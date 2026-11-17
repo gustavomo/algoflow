@@ -24,6 +24,10 @@ import {
   buildFlowTrace,
   type TraceFrame,
 } from '../../lib/simulations/flowTrace';
+import {
+  suggestGhosts,
+  type GhostSuggestion,
+} from '../../lib/simulations/ghostSuggestions';
 import { tone } from '../../lib/animation/runtimeSceneTone';
 import {
   activateNode,
@@ -159,6 +163,19 @@ export default function SystemDesignStudio({
   );
   const traceFrame = frames[traceIndex];
   const traceStep = challengeResult ? challengeStep : currentStep;
+  const latestAttempt = attempts[0];
+  const ghosts = useMemo(() => {
+    const failed = new Set(
+      latestAttempt?.evaluation.evidence
+        .filter((item) => !item.passed)
+        .map((item) => item.ruleId) ?? [],
+    );
+    return suggestGhosts(
+      graph,
+      challengeResult ? undefined : flow.missing,
+      scenario.rubric.filter((rule) => failed.has(rule.id)),
+    );
+  }, [challengeResult, flow.missing, graph, latestAttempt, scenario.rubric]);
   const selected = graph.nodes.find((node) => node.id === selectedId);
   const selectedEdges = graph.edges.filter(
     (edge) => edge.from === selectedId || edge.to === selectedId,
@@ -257,6 +274,50 @@ export default function SystemDesignStudio({
     setSelectedId(id);
     setMessage(
       `${nodeLabel(blockType)} added. Drag it or use Alt + arrow keys.`,
+    );
+  }
+
+  function placeGhost(ghost: GhostSuggestion) {
+    const stamp = Date.now().toString(36);
+    if (ghost.kind === 'edge') {
+      setGraph({
+        ...graph,
+        edges: [
+          ...graph.edges,
+          { id: `edge-${stamp}`, from: ghost.fromId, to: ghost.toId },
+        ],
+      });
+      setMessage('Suggested connection placed.');
+      return;
+    }
+    const id = `${ghost.nodeType}-${stamp}`;
+    const wires = [
+      ghost.connectFromId && { from: ghost.connectFromId, to: id },
+      ghost.connectToId && { from: id, to: ghost.connectToId },
+    ].filter((wire): wire is { from: string; to: string } => Boolean(wire));
+    setGraph({
+      nodes: [
+        ...graph.nodes,
+        {
+          id,
+          type: ghost.nodeType,
+          label: nodeLabel(ghost.nodeType),
+          x: ghost.x,
+          y: ghost.y,
+          config: {},
+        },
+      ],
+      edges: [
+        ...graph.edges,
+        ...wires.map((wire, index) => ({
+          id: `edge-${stamp}-${index}`,
+          ...wire,
+        })),
+      ],
+    });
+    setSelectedId(id);
+    setMessage(
+      `${nodeLabel(ghost.nodeType)} placed${wires.length ? ' and wired into the flow' : ''}.`,
     );
   }
 
@@ -519,6 +580,8 @@ export default function SystemDesignStudio({
                 : undefined
             }
             complete={activePlayback.matches('completed')}
+            ghosts={ghosts}
+            onPlaceGhost={placeGhost}
             footer={
               <div
                 data-canvas-dock

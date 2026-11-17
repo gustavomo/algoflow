@@ -9,6 +9,7 @@ import {
   SYSTEM_EDGE_VISUALS,
   SYSTEM_PHASE_VISUALS,
   buildSystemEdgeGeometry,
+  resolveSystemNodeVisual,
   classifySystemEdge,
   parallelEdgePosition,
   type ActiveSystemFlow,
@@ -19,6 +20,7 @@ import {
   tokenTravel,
   type TraceFrame,
 } from '../../lib/simulations/flowTrace';
+import type { GhostSuggestion } from '../../lib/simulations/ghostSuggestions';
 import { tone } from '../../lib/animation/runtimeSceneTone';
 import SystemNodeGlyph from './SystemNodeGlyph';
 
@@ -154,6 +156,162 @@ function CompletionSweep({ reducedMotion }: { reducedMotion: boolean }) {
   );
 }
 
+const ghostKeyDown =
+  (onPlace: () => void) => (event: React.KeyboardEvent<SVGGElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) onPlace();
+    }
+  };
+
+/**
+ * A suggested block or connection: a dashed outline at the suggested spot
+ * with a one-click (or Enter / Space) place affordance. The dashed wires show
+ * where placing it will connect.
+ */
+function GhostSuggestionMark({
+  ghost,
+  graph,
+  onPlace,
+}: {
+  ghost: GhostSuggestion;
+  graph: SystemDesignGraph;
+  onPlace: () => void;
+}) {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  const stroke = 'rgb(var(--color-subtle))';
+  if (ghost.kind === 'edge') {
+    const from = nodes.get(ghost.fromId);
+    const to = nodes.get(ghost.toId);
+    if (!from || !to) return null;
+    const geometry = buildSystemEdgeGeometry(from, to);
+    return (
+      <g data-ghost={ghost.id}>
+        <path
+          d={geometry.path}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="2"
+          strokeDasharray="6 6"
+        />
+        <g
+          role="button"
+          tabIndex={0}
+          data-system-node={ghost.id}
+          aria-label={`Connect ${from.label} to ${to.label}. ${ghost.reason}`}
+          transform={`translate(${geometry.middle.x} ${geometry.middle.y})`}
+          onClick={onPlace}
+          onKeyDown={ghostKeyDown(onPlace)}
+          style={{ cursor: 'pointer' }}
+        >
+          <title>{`Connect ${from.label} to ${to.label}`}</title>
+          <rect x="-34" y="-24" width="68" height="48" fill="transparent" />
+          <circle
+            r="15"
+            fill="rgb(var(--color-surface))"
+            stroke="rgb(var(--color-ink))"
+            strokeWidth="1.5"
+            strokeDasharray="4 3"
+          />
+          <path
+            d="M-6 0h12M0-6v12"
+            stroke="rgb(var(--color-ink))"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </g>
+      </g>
+    );
+  }
+  const visual = resolveSystemNodeVisual(ghost.nodeType);
+  const name = ghost.nodeType.replaceAll('-', ' ');
+  const wires = [
+    ghost.connectFromId ? nodes.get(ghost.connectFromId) : undefined,
+    ghost.connectToId ? nodes.get(ghost.connectToId) : undefined,
+  ];
+  return (
+    <g data-ghost={ghost.id}>
+      {wires.map(
+        (node, index) =>
+          node && (
+            <line
+              key={node.id}
+              x1={index === 0 ? node.x : ghost.x}
+              y1={index === 0 ? node.y : ghost.y}
+              x2={index === 0 ? ghost.x : node.x}
+              y2={index === 0 ? ghost.y : node.y}
+              stroke={stroke}
+              strokeWidth="1.5"
+              strokeDasharray="4 6"
+              opacity=".8"
+            />
+          ),
+      )}
+      <g
+        role="button"
+        tabIndex={0}
+        data-system-node={ghost.id}
+        aria-label={`Place suggested ${name} block. ${ghost.reason}`}
+        transform={`translate(${ghost.x} ${ghost.y})`}
+        onClick={onPlace}
+        onKeyDown={ghostKeyDown(onPlace)}
+        style={{ cursor: 'pointer' }}
+      >
+        <title>{`Suggested ${name} · ${ghost.reason}`}</title>
+        <rect
+          x="-62"
+          y="-50"
+          width="124"
+          height="128"
+          rx="10"
+          fill="rgb(var(--color-canvas))"
+          fillOpacity=".75"
+          stroke={stroke}
+          strokeWidth="1.5"
+          strokeDasharray="6 5"
+        />
+        <text
+          y="-14"
+          textAnchor="middle"
+          fill="rgb(var(--color-subtle))"
+          fontSize="20"
+          fontWeight="700"
+          letterSpacing="1"
+        >
+          {visual.mark}
+        </text>
+        <text
+          y="14"
+          textAnchor="middle"
+          fill="rgb(var(--color-ink-soft))"
+          fontSize="13"
+          fontWeight="600"
+        >
+          {name}
+        </text>
+        <rect
+          x="-48"
+          y="32"
+          width="96"
+          height="34"
+          rx="17"
+          fill="rgb(var(--color-action))"
+        />
+        <text
+          y="54"
+          textAnchor="middle"
+          fill="rgb(var(--color-canvas))"
+          fontSize="13"
+          fontWeight="700"
+        >
+          + Place
+        </text>
+      </g>
+    </g>
+  );
+}
+
 export default function SystemDesignCanvas({
   graph,
   onChange,
@@ -169,6 +327,8 @@ export default function SystemDesignCanvas({
   trace,
   complete = false,
   footer,
+  ghosts = [],
+  onPlaceGhost,
 }: {
   graph: SystemDesignGraph;
   onChange: (graph: SystemDesignGraph) => void;
@@ -187,6 +347,9 @@ export default function SystemDesignCanvas({
   complete?: boolean;
   /** Controls docked to the canvas bottom (narration, caption, playback). */
   footer?: ReactNode;
+  /** Suggested blocks and connections, drawn as dashed ghosts. */
+  ghosts?: GhostSuggestion[];
+  onPlaceGhost?: (ghost: GhostSuggestion) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ id: string; pointerId: number }>();
@@ -464,6 +627,16 @@ export default function SystemDesignCanvas({
                 </g>
               );
             })}
+
+            {onPlaceGhost &&
+              ghosts.map((ghost) => (
+                <GhostSuggestionMark
+                  key={ghost.id}
+                  ghost={ghost}
+                  graph={graph}
+                  onPlace={() => onPlaceGhost(ghost)}
+                />
+              ))}
 
             {graph.nodes.map((node) => {
               const active = node.id === activeNodeId;
