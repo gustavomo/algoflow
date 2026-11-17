@@ -7,7 +7,6 @@ import type {
   RuntimeScene,
   VisualizationKind,
 } from '@algoflow/contracts';
-import { createComplexitySteps } from '../../lib/algorithms/complexitySteps';
 import playbackMachine from '../../lib/xstate/playbackMachine';
 import BubbleSortChallenge from './BubbleSortChallenge';
 import ConceptFlowViz from '../animation/ConceptFlowViz';
@@ -37,15 +36,20 @@ export default function LessonVizPlayer({
   conceptFlow?: ConceptFlowNarrative;
   runtimeScene?: RuntimeScene;
 }) {
-  // Narrated runtime steps need reading time, so they start at the 0.5×
-  // preset. Seeding the machine context (not sending SPEED from an effect)
-  // keeps the server-rendered selector and the hydrated one in agreement.
+  // Narrated steps (scenes and concept flows) need reading time, so they
+  // start at the 0.5× preset. Seeding the machine context (not sending SPEED
+  // from an effect) keeps the server-rendered selector and the hydrated one
+  // in agreement.
   // A lesson that ships a scene plays it whatever its kind: `bubble-sort`
   // keeps its own kind only to add the hands-on lab as a third mode.
   const isScene =
     visualizationKind === 'runtime-scene' || Boolean(runtimeScene);
+  // The complexity chart is explored, not played: it owns its slider and its
+  // step mode, so it has no step sequence and no playback bar.
+  const isComplexity = visualizationKind === 'complexity' && !isScene;
+  const narrated = isScene || visualizationKind === 'concept-flow';
   const [state, send] = useMachine(() =>
-    isScene
+    narrated
       ? playbackMachine.withContext({
           ...playbackMachine.context,
           speedMs: RUNTIME_SCENE_SPEED_MS,
@@ -67,7 +71,7 @@ export default function LessonVizPlayer({
     if (isScene && runtimeScene) return runtimeScene.steps;
     if (visualizationKind === 'concept-flow' && conceptFlow)
       return conceptFlow.steps;
-    return createComplexitySteps();
+    return [];
   }, [conceptFlow, isScene, runtimeScene, visualizationKind]);
 
   useEffect(() => {
@@ -75,7 +79,7 @@ export default function LessonVizPlayer({
   }, [send, sequence.length, slug]);
   useEffect(() => {
     // The challenge and the lab drive themselves; only the scene has playback.
-    if (mode !== 'scene') return;
+    if (mode !== 'scene' || isComplexity) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (
@@ -99,16 +103,10 @@ export default function LessonVizPlayer({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [mode, send, state]);
+  }, [isComplexity, mode, send, state]);
 
   const index = Math.min(state.context.stepIndex, sequence.length - 1);
-  let visualization = (
-    <ComplexityViz
-      snapshot={
-        sequence[index] as ReturnType<typeof createComplexitySteps>[number]
-      }
-    />
-  );
+  let visualization = <ComplexityViz />;
   if (visualizationKind === 'concept-flow' && conceptFlow) {
     visualization = (
       <ConceptFlowViz
@@ -181,7 +179,7 @@ export default function LessonVizPlayer({
       ) : (
         <>
           {visualization}
-          {playback}
+          {!isComplexity && playback}
         </>
       )}
     </div>
