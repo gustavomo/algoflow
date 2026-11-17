@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
@@ -64,5 +64,41 @@ describe('theme init script', () => {
   it('survives blocked storage', () => {
     const root = runInitScript(new Error('denied'), false);
     expect(root.dataset.theme).toBe('dark');
+  });
+});
+
+describe('theme preference store', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('keeps the new choice when storage reads but refuses writes', async () => {
+    const stored = new Map([[THEME_STORAGE_KEY, 'light']]);
+    const root = { dataset: {} as Record<string, string>, style: {} };
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: () => {
+          throw new Error('QuotaExceededError');
+        },
+        removeItem: () => {
+          throw new Error('QuotaExceededError');
+        },
+      },
+      matchMedia: () => ({ matches: false }),
+    });
+    vi.stubGlobal('document', {
+      documentElement: root,
+      querySelectorAll: () => [],
+    });
+    const theme = await import('../theme');
+
+    expect(theme.getThemePreference()).toBe('light');
+    theme.setThemePreference('dark');
+    expect(theme.getThemePreference()).toBe('dark');
+    expect(root.dataset.theme).toBe('dark');
+    theme.setThemePreference('system');
+    expect(theme.getThemePreference()).toBe('system');
   });
 });

@@ -56,8 +56,15 @@ const listeners = new Set<() => void>();
 let wired = false;
 /** The last choice made on this page, used when storage is unavailable. */
 let unsavedPreference: ThemePreference = 'system';
+/**
+ * True after a write failed. Storage may still be readable (a full quota, a
+ * read-only sandbox), and its stale value would otherwise win over the
+ * choice just made, freezing the toggle.
+ */
+let writeFailed = false;
 
 function readPreference(): ThemePreference {
+  if (writeFailed) return unsavedPreference;
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     return isThemePreference(stored) ? stored : 'system';
@@ -114,8 +121,10 @@ export function setThemePreference(preference: ThemePreference) {
     } else {
       window.localStorage.setItem(THEME_STORAGE_KEY, preference);
     }
+    writeFailed = false;
   } catch {
     // Storage can be blocked; the choice then lasts for this page only.
+    writeFailed = true;
   }
   applyTheme();
 }
