@@ -38,7 +38,6 @@ export default function PlaybackBar({
           ←
         </button>
         <button
-          aria-label={playing ? 'Pause' : 'Play'}
           onClick={() => send({ type: playing ? 'PAUSE' : 'PLAY' })}
           className="min-h-11 min-w-24 bg-action px-4 py-2 text-sm font-semibold text-canvas"
         >
@@ -98,7 +97,6 @@ export default function PlaybackBar({
           ←
         </button>
         <button
-          aria-label={state.matches('playing') ? 'Pause' : 'Play'}
           onClick={() =>
             send({ type: state.matches('playing') ? 'PAUSE' : 'PLAY' })
           }
